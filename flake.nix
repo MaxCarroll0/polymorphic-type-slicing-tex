@@ -10,11 +10,17 @@
     }:
     let
       document_name = "document_name"; # Set name here
-      document_date = "2026-03-30 13:00:00 UTC"; # Set date here. Set to empty string to automatically use last commit date
+      document_date = "2026-03-29"; # Set date here. Set to empty string to automatically use last commit date
       tex =
         pkgs:
         pkgs.texlive.combine {
-          inherit (pkgs.texlive) scheme-minimal latex-bin latexmk; # Add TeX packages here
+          inherit (pkgs.texlive)
+            scheme-basic
+            latex-bin
+            latexmk
+            # Add TeX packages here
+            lipsum
+            ;
         };
 
       forEachSystem =
