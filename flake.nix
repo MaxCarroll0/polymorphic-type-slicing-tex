@@ -11,36 +11,24 @@
     let
       document_name = "document_name"; # Set name here
       document_date = "2026-03-30 13:00:00 UTC"; # Set date here. Set to empty string to automatically use last commit date
-
-      systems = [
-        "x86_64-linux"
-        "aarch64-linux"
-        "x86_64-darwin"
-        "aarch64-darwin"
-      ];
-      forEachSystem =
-        f:
-        nixpkgs.lib.genAttrs systems (
-          system:
-          f {
-            pkgs = import nixpkgs { inherit system; };
-          }
-        );
-      tex = forEachSystem (
+      tex =
         pkgs:
         pkgs.texlive.combine {
-          inherit (pkgs.texlive) scheme-minimal latex-bin latexmk; # Add packages here
-        }
-      );
+          inherit (pkgs.texlive) scheme-minimal latex-bin latexmk; # Add TeX packages here
+        };
+
+      forEachSystem =
+        f:
+        nixpkgs.lib.genAttrs nixpkgs.lib.systems.flakeExposed (system: f nixpkgs.legacyPackages.${system});
     in
-    rec {
-      packages = forEachSystem (pkgs: {
+    {
+      packages = forEachSystem (pkgs: rec {
         document = pkgs.stdenvNoCC.mkDerivation rec {
           name = document_name;
           src = self;
           buildInputs = [
             pkgs.coreutils
-            tex
+            (tex pkgs)
           ];
           phases = [
             "unpackPhase"
@@ -63,7 +51,8 @@
             cp ${document_name}.pdf $out/
           '';
         };
+
+        default = document;
       });
-      defaultPackage = packages.document;
     };
 }
