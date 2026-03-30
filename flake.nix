@@ -43,18 +43,18 @@
           ];
           buildPhase = ''
             export PATH="${pkgs.lib.makeBinPath buildInputs}";
-            mkdir -p .cache/texmf-var
-            env TEXMFHOME=.cache TEXMFVAR=.cache/texmf-var \
-              SOURCE_DATE_EPOCH=${
-                if document_date == "" then toString self.lastModified else "$(date -d ${document_date} +%s)"
-              } \
-              latexmk -interaction=nonstopmode -pdf -lualatex \
-              -pretex="\pdfvariable suppressoptionalinfo 512\relax" \
-              -usepretex ${document_name}$.tex
+            export TEXMFVAR=$(mktemp -d);
+            export SOURCE_DATE_EPOCH=${
+              if document_date == "" then toString self.lastModified else "$(date -d ${document_date} +%s)"
+            };
+            latexmk -interaction=nonstopmode -pdf -lualatex \
+            -pretex="\pdfvariable suppressoptionalinfo 512\relax" \
+            -usepretex ${document_name}.tex
           '';
           installPhase = ''
             mkdir -p $out
             cp ${document_name}.pdf $out/
+            cp ${document_name}.log $out/
           '';
         };
 
