@@ -1,5 +1,5 @@
 {
-  description = "(lua)LaTeX Build Template";
+  description = "Polymorphic Type Slicing Dissertation";
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-25.05";
   };
@@ -9,8 +9,8 @@
       nixpkgs,
     }:
     let
-      document_name = "document_name"; # Set name here
-      document_date = "2026-03-29"; # Set date here. Set to empty string to automatically use last commit date
+      document_name = "PolymorphicTypeSlicing"; # Set name here
+      document_date = ""; # Set date here. Set to empty string to automatically use last commit date
       tex =
         pkgs:
         pkgs.texlive.combine {
