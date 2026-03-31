@@ -33,7 +33,12 @@
         default = pkgs.mkShell {
           # require TexLive with required packages
           packages = [
-            ((tex pkgs).withPackages (ps: [ ps.digestif ]))
+            ((tex pkgs).withPackages (
+              ps: with ps; [
+                digestif
+                dvisvgm
+              ]
+            ))
           ];
         };
       });
