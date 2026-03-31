@@ -28,6 +28,18 @@
         nixpkgs.lib.genAttrs nixpkgs.lib.systems.flakeExposed (system: f nixpkgs.legacyPackages.${system});
     in
     {
+      # Dev Shell
+      devShells = forEachSystem (pkgs: {
+        default = pkgs.mkShell {
+          # require TexLive with required packages
+          packages = [
+            (tex pkgs)
+          ];
+
+        };
+      });
+
+      # Build via Latexmk
       packages = forEachSystem (pkgs: rec {
         document = pkgs.stdenvNoCC.mkDerivation rec {
           name = document_name;
