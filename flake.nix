@@ -13,15 +13,15 @@
       document_date = ""; # Set date here. Set to empty string to automatically use last commit date
       tex =
         pkgs:
-        pkgs.texlive.combine {
-          inherit (pkgs.texlive)
+        pkgs.texlive.withPackages (
+          ps: with ps; [
             scheme-basic
             latex-bin
             latexmk
-            # Add TeX packages here
+            # Add extra TeX packages here
             lipsum
-            ;
-        };
+          ]
+        );
 
       forEachSystem =
         f:
@@ -33,9 +33,8 @@
         default = pkgs.mkShell {
           # require TexLive with required packages
           packages = [
-            (tex pkgs)
+            ((tex pkgs).withPackages (ps: [ ps.digestif ]))
           ];
-
         };
       });
 
