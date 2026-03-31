@@ -2,3 +2,6 @@ auto/
 result/
 result
 .direnv/
+*.aux
+*.pdf
+*.log
