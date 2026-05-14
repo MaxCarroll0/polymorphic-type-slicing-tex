@@ -8,7 +8,7 @@ Program slicing of various different forms, relating to dynamic execution, data 
 
 Classical program slicing \cite{Weiser1984,TipSurvey1995} was developed for imperative programs. Slices are syntactically obtained by deleting lines in the code, which is less flexible than omitting arbitrary sub-terms in a syntax tree as used here. The equivalent of type queries is a `slicing criterion', which is a (program-point, variable) pair, with the slice preserving the runtime value of the chosen variable at the chosen point. Type queries have a more complex, compound structure as compared to simple variables, and slices cannot preserve the type query in general (\cref{lem:exact-not-exist}), so we adopt the notion of \textit{validity} instead of preservation.
 
-Program slicing has static and dynamic variants~\cite{Weiser1984,KorelLaski1988}, depending on whether the slicing criterion is preserved over \textit{all} inputs to the program or a particular execution. As typing is deterministic (\cref{thm:unicity}), this distinction does not apply to type slicing.
+Program slicing has static~\cite{Weiser1984} and dynamic~\cite{KorelLaski1988} variants, depending on whether the slicing criterion is preserved over \textit{all} inputs to the program or a particular execution. As typing is deterministic (\cref{thm:unicity}), this distinction does not apply to type slicing.
 
 \subsection{Galois Slicing}
 \label{sec:cmp-galois}
