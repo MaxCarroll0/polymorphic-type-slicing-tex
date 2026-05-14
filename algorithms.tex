@@ -1,0 +1,444 @@
+\section{Optimising Type Slice Calculation}
+\label{sec:algorithms}
+
+\sectionlegend
+
+\providecommand{\tmslice}[2]{\mathit{TermMin}\;#1 \mathbin{\blacktriangleleft} #2}
+\providecommand{\mintmslice}[2]{\mathit{MinTermMin}\;#1 \mathbin{\blacktriangleleft} #2}
+\providecommand{\tmcalc}[5]{#1 \mathbin{{\color{BrickRed}\blacktriangleleft}} #2 \;{\color{BrickRed}\rightsquigarrow}\; #3 \mathbin{{\color{BrickRed}\Uparrow}} #4 \,\dashv\, #5}
+\providecommand{\tmrule}[7][\Delta;\,\Gamma]{%
+  #1 \vdash #2 \mathbin{{\color{BrickRed}\Uparrow}} #3
+  \mathbin{{\color{BrickRed}\blacktriangleleft}} #4
+  \;{\color{BrickRed}\rightsquigarrow}\; #5
+  \mathbin{{\color{BrickRed}\Uparrow}} #6
+  \,\dashv\, #7%
+}
+
+\providecommand{\stkU}[2]{%
+  \tikz[baseline=(N.base)]{%
+    \node[inner sep=0pt, outer sep=0pt] (N) {\strut$#2$};%
+    \foreach \col/\off in {#1}{%
+      \draw[\col, line width=1.2pt, line cap=butt, overlay]
+        ([xshift=-3pt,yshift=\off]N.south west) -- ([xshift=3pt,yshift=\off]N.south east);%
+    }%
+    \path ([yshift=-10pt]N.south west) ([yshift=-10pt]N.south east);%
+  }%
+}
+\providecommand{\tokensp}{\mskip8mu}
+\providecommand{\sABCD}[1]{\stkU{BrickRed/-1pt,NavyBlue/-3.4pt,OliveGreen/-5.8pt,Mulberry/-8.2pt}{#1}}
+\providecommand{\sABC}[1]{\stkU{BrickRed/-1pt,NavyBlue/-3.4pt,OliveGreen/-5.8pt}{#1}}
+\providecommand{\sABD}[1]{\stkU{BrickRed/-1pt,NavyBlue/-3.4pt,Mulberry/-8.2pt}{#1}}
+\providecommand{\sAC}[1]{\stkU{BrickRed/-1pt,OliveGreen/-5.8pt}{#1}}
+\providecommand{\sAD}[1]{\stkU{BrickRed/-1pt,Mulberry/-8.2pt}{#1}}
+\providecommand{\sBC}[1]{\stkU{NavyBlue/-3.4pt,OliveGreen/-5.8pt}{#1}}
+\providecommand{\sBD}[1]{\stkU{NavyBlue/-3.4pt,Mulberry/-8.2pt}{#1}}
+\providecommand{\sC}[1]{\stkU{OliveGreen/-5.8pt}{#1}}
+\providecommand{\sD}[1]{\stkU{Mulberry/-8.2pt}{#1}}
+\providecommand{\sPone}[1]{\stkU{OliveGreen/-1pt}{#1}}
+\providecommand{\sPtwo}[1]{\stkU{Mulberry/-3.4pt}{#1}}
+\providecommand{\sPboth}[1]{\stkU{OliveGreen/-1pt,Mulberry/-3.4pt}{#1}}
+
+\bigskip
+\noindent The theory of Sections~\ref{sec:synthesis}--\ref{sec:analysis} establishes \textit{which} slices exist, and provide a brute-force algorithm. This section explores these structures further to improve the brute-force algorithm.
+
+\subsection{\yo Products of Synthesis Slices}
+\label{sec:product-revisited}
+\mechfile{Slicing/Synthesis/\\FixedAssmsCalc}
+
+The product counterexample of Section~\ref{sec:ce-prod-not-closed-min} is worth re-examining, which stated that not all pairs of minimal slices can be paired into a minimal product slice. Consider the following if statement:
+\[ \Gamma = (x \mathbin{:} \mathbf{*} \Rightarrow \mathbf{*},\; y \mathbin{:} \mathbf{*} \Rightarrow \mathbf{*}), \qquad e = \mathbf{if}\;\mathbf{true}\;\mathbf{then}\;x\;\mathbf{else}\;y, \qquad \tau = \mathbf{*} \Rightarrow \mathbf{*}, \]
+and ask for slices of $D : \synthesis{e}{\tau}$ at the full query $\upsilon = \mathbf{*} \Rightarrow \mathbf{*}$. There are \textit{four} incomparable minimal full slices, displayed together as underlines:
+
+\begin{center}
+\begin{tikzpicture}[baseline=(t.base), every node/.style={inner sep=3pt}]
+  \node[draw, line width=0.9pt, rounded corners,
+        label={[font=\scriptsize\itshape]above:assumptions}] (a)
+        {$x : \sAC{\mathbf{*}} \mathrel{\sABC{\Rightarrow}} \sBC{\mathbf{*}},\quad y : \sBD{\mathbf{*}} \mathrel{\sABD{\Rightarrow}} \sAD{\mathbf{*}}$};
+  \node[below=12pt of a] (t)
+       {$\sABCD{\mathbf{if}}\tokensp\mathbf{true}\tokensp\sABCD{\mathbf{then}}\tokensp\sABC{x}\tokensp\sABCD{\mathbf{else}}\tokensp\sABD{y}$};
+\end{tikzpicture}
+\end{center}
+
+The four colours encode four minimal slices of $D$ at $\upsilon$:
+\begin{description}
+\item[(A) {\color{BrickRed}Red}]: Both branches are retained; the assumption slice keeps $x$'s domain only and $y$'s codomain only (joining to $* \Rightarrow *$).
+\item[(B) {\color{NavyBlue}Blue}]: Symmetric to (A), taking the opposite choices for the assumption slice
+\item[(C) {\color{OliveGreen}Green}]: \textbf{Else}-branch omitted.
+\item[(D) {\color{Mulberry}Mulberry}]: Symmetric to (C): \textbf{then}-branch omitted.
+\end{description}
+
+Slices (A) and (B) are minimal because each variable is sliced \textit{differently} across the two uses, and none are \textit{program} slices of each other. However, notice that (A) and (B) are not subslices of the product with $x$, where only 2 minima exist:
+
+\begin{center}
+\begin{tikzpicture}[baseline=(t.base), every node/.style={inner sep=3pt}]
+  \node[draw, line width=0.9pt, rounded corners,
+        label={[font=\scriptsize\itshape]above:assumptions}] (a)
+        {$x : \sPboth{\mathbf{*}\Rightarrow\mathbf{*}},\quad y : \sPtwo{\mathbf{*}\Rightarrow\mathbf{*}}$};
+  \node[below=12pt of a] (t)
+       {$\sPboth{(}\tokensp\sPboth{\mathbf{if}}\tokensp\mathbf{true}\tokensp\sPboth{\mathbf{then}}\tokensp\sPone{x}\tokensp\sPboth{\mathbf{else}}\tokensp\sPtwo{y}\tokensp\mathbf{,}\tokensp\sPboth{x}\tokensp\sPboth{)}$};
+\end{tikzpicture}
+\end{center}
+
+\paragraph{Aliasing.} When this expression is embedded in the product $(\mathbf{if}\;\mathbf{true}\;\mathbf{then}\;x\;\mathbf{else}\;y,\; x)$, the outer use of $x$ \textit{joins} onto the assumption slice. As slices (A) (B) (C) each also use $x$, the assumptions are aliased, and in slices (A) (B) the assumptions now available in the if statement are strictly greater, making the expression non-minimal.
+
+\paragraph{Proposal.} Use a stricter notion of synthesis slices that asks only ``is the term irreducible under the full assumptions $\Gamma$?''. Slices (A) and (B) are ruled out, but (C) and (D) are still valid. The next subsection makes this precise.
+
+\subsection{\yo Term Slices}
+\label{sec:term-minimal-slices}
+\mechfile{Slicing/Synthesis/\\FixedAssmsSynthesis}
+
+To rule out slices like (A) and (B) of Section~\ref{sec:product-revisited} we strengthen the notion of slice: rather than allowing the assumption context to vary across $\lfloor \Gamma \rfloor$, we fix it at the full $\Gamma$ and slice the term alone. The resulting slice is a sliced term that, under the original assumptions, still synthesises a type at least as precise as the query.
+
+\begin{definition}[\yo Term-minimal slice]
+\label{def:term-minimal-slice}
+A \textit{term-minimal slice} of $D : \synthesis{e}{\tau}$ on $\upsilon \in \lfloor \tau \rfloor$, written $\tmslice{D}{\upsilon}$, is a triple, notated:
+\[ \varsigma \mathbin{{\color{BrickRed}\Uparrow}} \psi \mathbin{\sqsupseteq} \upsilon \mathbin{\in} d \]
+where $\varsigma \in \lfloor e \rfloor$ and derivation $d : \synthesis[\Delta;\,\Gamma]{\varsigma}{\psi}$ for $\psi \sqsupseteq \upsilon$, and $\psi \in \lfloor \tau \rfloor$ by graduality (Theorem~\ref{thm:graduality-syn}).
+\end{definition}
+
+\subsection{\yo Term-Minimality}
+\label{sec:term-minimality}
+\mechfile{Slicing/Synthesis/\\FixedAssmsSynthesis}
+
+Minimality lifts directly from the slice lattice on $e$ alone:
+\begin{definition}[\yo Minimal Term-Minimal Slices]
+\label{def:mintmslice}
+A $\mintmslice{D}{\upsilon}$ is a $\tmslice{D}{\upsilon}$ such that the term slice $\varsigma$ is minimal in $\{\varsigma \mid \varsigma \,{\color{BrickRed}\Uparrow}\, \psi \sqsupseteq \upsilon \in d : \tmslice{D}{\upsilon}\}$.
+\end{definition}
+
+The two notions of minimality do not coincide: term-minimality is strictly stronger. Not all minimal slices are term-minimal under maximal assumptions.
+
+\begin{counterexamplebox}
+\mechbox{\textnormal{\textbf{¬}}min-syn-is-\\min-fixedassms}%
+\begin{counterexample}[\yo Minimal $\not\Rightarrow$ Term-Minimal]\label{lem:min-not-tmin}
+Slices (A) and (B) of Section~\ref{sec:product-revisited} are minimal synthesis slices but not term-minimal.
+\end{counterexample}
+\end{counterexamplebox}
+
+\subsection{\po Existence of Minimal Term-Minimal Slices}
+\label{sec:tmin-exists}
+\mechfile{Slicing/Synthesis/\\FixedAssmsSynthesis}
+
+As with synthesis slices, every term-minimal slice has a minimal slice below it:
+
+\mechbox{tmin-exists}%
+\begin{theorem}[\po Existence of minimal term-minimal slices]\label{thm:tmin-exists}
+For every $s : \tmslice{D}{\upsilon}$, there exists $m : \mintmslice{D}{\upsilon}$ with $m \sqsubseteq s$.
+\end{theorem}
+
+The rest of this chapter develops a structural calculus that characterises minimal term slices via a judgement:
+\[ \Gamma \vdash e \mathbin{{\color{BrickRed}\Uparrow}} \tau \mathbin{\blacktriangleleft} \upsilon \;{\color{BrickRed}\rightsquigarrow}\; \varsigma \mathbin{{\color{BrickRed}\Uparrow}} \psi \dashv \gamma, \]
+read ``the typing $\Gamma \vdash e \Uparrow \tau$ at query $\upsilon$ produces term slice $\varsigma$, synthesises $\psi$, and uses assumptions $\gamma$''. The fourth output $\gamma$ is a minimal assumption slice to retrieve a minimal slice corresponding to the term-minimal slice.
+
+\subsection{\yo Term-Minimal $\to$ Minimal Slice}
+\label{sec:tmin-to-min}
+\mechfile{Slicing/Synthesis/\\FixedAssmsCalc}
+
+Therefore, a minimal slice can be extracted from this by pairing $\gamma$ with $\varsigma$:
+
+\begin{majortheorembox}
+\mechbox{tmin-is-min}%
+\begin{theorem}[\yo Soundness: term-minimal $\Rightarrow$ minimal]\label{thm:tmin-to-min}
+
+If $\varsigma$ is a term-minimal slice on query $\upsilon$, then for any minimal context $\gamma$ for $\varsigma$ that still synthesises a more or equally less precise type to $\upsilon$, then $(\gamma, \varsigma$) is a minimal synthesis slice on $\upsilon$.
+\end{theorem}
+\end{majortheorembox}
+
+\begin{proof}
+The term component $\varsigma$ is minimal at full $\Gamma$, so is minimal \emph{a fortiori} at any $\gamma' \sqsubseteq \Gamma$ by graduality, hence is a MinSynSlice at the minimal context $\gamma$ produced by the calculus.
+\end{proof}
+
+This justifies the algorithmic strategy that occupies the rest of the chapter: compute term-minimal slices structurally, then promote them to full minimal slices.
+
+\subsection{\yo Calculating Term-Minimal Slices}
+\label{sec:term-minimal-calculus}
+\mechfile{Slicing/Synthesis/\\FixedAssmsCalc}
+
+As mentioned previously, restricting to term-minimality allows products to be calculated by pairing sub-slices at the corresponding sub-queries, i.e. for $\upsilon_1 \times \upsilon_2$, slice the first component at $\upsilon_1$, similarly for the second. More generally, if a typing rule has sub-terms which synthesise types, then recursively slice them. Otherwise, if a sub-term analyses against a type, it can be omitted entirely.
+
+\begin{figure}[p]
+\centering
+\scriptsize
+\fbox{\normalsize $\Delta;\,\Gamma \vdash e \Uparrow \tau \mathbin{\blacktriangleleft} \upsilon \rightsquigarrow \varsigma \Uparrow \psi \dashv \gamma$}
+\bigskip
+
+\inference[\synr{Var}]{
+  \Gamma(x) = \tau \quad \upsilon \neq \gap
+}{\tmrule{x}{\tau}{\upsilon}{x}{\tau}{\latticebot[x \mapsto \upsilon]}}
+
+\bigskip
+
+\inference[\synr{Gap}]{}{\tmrule{e}{\tau}{\gap}{\gap}{\gap}{\latticebot}}
+
+\bigskip
+
+\inference[\synr{Const}]{}{\tmrule{*}{*}{\latticetop}{*}{*}{\latticebot}}
+
+\bigskip
+
+\inference[\synr{Pair}]{
+  \tmrule{e_1}{\tau_1}{\upsilon_1}{\varsigma_1}{\psi_1}{\gamma_1}
+  &
+  \tmrule{e_2}{\tau_2}{\upsilon_2}{\varsigma_2}{\psi_2}{\gamma_2}
+}{\tmrule{(e_1, e_2)}{\tau_1 \times \tau_2}{\upsilon_1 \times \upsilon_2}{(\varsigma_1, \varsigma_2)}{\psi_1 \times \psi_2}{\gamma_1 \sqcup \gamma_2}}
+
+\bigskip
+
+\inference[\synr{Proj}]{
+  \upsilon \neq \gap
+  &
+  \tmrule{e}{\tau_1 \times \tau_2}{\widehat{\upsilon}_i}{\varsigma}{\psi_1}{\gamma}
+}{\tmrule{\pi_i\,e}{\tau_i}{\upsilon}{\pi_i\,\varsigma}{\pi_i\,\psi_1}{\gamma}}
+
+\bigskip
+
+\inference[\synr{App}]{
+  \analysis{e_2}{\tau_1}
+  &
+  \upsilon \neq \gap
+  &
+  \tmrule{e_1}{\tau_1 \Rightarrow \tau_2}{\gap \Rightarrow \upsilon}{\varsigma_{\mathit{fn}}}{\psi_1}{\gamma}
+}{\tmrule{e_1\,e_2}{\tau_2}{\upsilon}{\varsigma_{\mathit{fn}}(\gap)}{\mathsf{cod}(\psi_1)}{\gamma}}
+
+\bigskip
+
+\inference[\synr{Lam{:}}]{
+  \tmrule[\Delta;\,\Gamma, x{:}\tau_1]{e_2}{\tau_2}{\upsilon_2}{\varsigma_2}{\psi_2}{\gamma, x{:}\phi_1}
+  &
+  \synthesis[\Delta;\,\Gamma, x{:}(\phi_1 \sqcup \upsilon_1)]{\varsigma_2{\downarrow}}{\psi_2'{\downarrow}}
+}{\tmrule{\lambda x{:}\tau_1.\,e_2}{\tau_1 \Rightarrow \tau_2}{\upsilon_1 \Rightarrow \upsilon_2}{\lambda x{:}(\phi_1 \sqcup \upsilon_1).\;\varsigma_2}{(\phi_1 \sqcup \upsilon_1) \Rightarrow \psi_2'}{\gamma}}
+
+\bigskip
+
+\inference[\synr{Let}]{
+  \upsilon_2 \neq \gap
+  &
+  \tmrule[\Delta;\,\Gamma, x{:}\tau_1]{e_2}{\tau_2}{\upsilon_2}{\varsigma_b}{\psi_2}{\gamma_2, x{:}\upsilon_1}
+  &
+  \tmrule{e_1}{\tau_1}{\upsilon_1}{\varsigma_d}{\psi_1}{\gamma_1}
+  &
+  \synthesis[\Delta;\,\Gamma, x{:}\psi_1]{\varsigma_b{\downarrow}}{\psi_2'{\downarrow}}
+}{\tmrule{\mathbf{let}\;x = e_1\;\mathbf{in}\;e_2}{\tau_2}{\upsilon_2}{\mathbf{let}\;x = \varsigma_d\;\mathbf{in}\;\varsigma_b}{\psi_2'}{\gamma_1 \sqcup \gamma_2}}
+
+\bigskip
+
+\inference[\synr{TLam}]{
+  \tmrule[\Delta, \alpha;\,\Gamma]{e}{\tau}{\upsilon}{\varsigma}{\psi'}{\gamma}
+}{\tmrule{\Lambda\alpha.\,e}{\forall\alpha.\,\tau}{\forall\alpha.\,\upsilon}{\Lambda\alpha.\,\varsigma}{\forall\alpha.\,\psi'}{\gamma}}
+
+\bigskip
+
+\centerline{\normalsize \fbox{\synr{TApp}: see Section~\ref{sec:term-min-tapp}.}}
+
+\bigskip
+
+\centerline{\normalsize \fbox{\synr{Case}: see Section~\ref{sec:fixed-point}.}}
+\caption{Term-minimal slice calculus rules.}
+\label{fig:tmrules}
+\end{figure}
+
+\bigskip
+
+\noindent The three cases that deserve commentary are the binders, the function application, and the type application; the \synr{Lam{:}}\ and \synr{Let}\ rules each carry a body re-typing premise (rightmost) which re-derives the body's typing under the binder slice $\gamma(x)$.
+
+\subsubsection{\yo Function Application}
+\label{sec:term-min-app}
+
+For example, for function application, omit the argument, and slice the function by $\gap \Rightarrow \upsilon$, the argument type is not required to determine the return type:
+\[
+\inference[\synr{App}]{
+  \analysis{e_2}{\tau_1}
+  &
+  \upsilon \neq \gap
+  &
+  \tmrule{e_1}{\tau_1 \Rightarrow \tau_2}{\gap \Rightarrow \upsilon}{\varsigma_{\mathit{fn}}}{\psi_1}{\gamma}
+}{\tmrule{e_1\,e_2}{\tau_2}{\upsilon}{\varsigma_{\mathit{fn}}(\gap)}{\mathsf{cod}(\psi_1)}{\gamma}}
+\]
+
+\subsubsection{\yo Lambdas, Lets, and Type Abstractions}
+\label{sec:term-min-binders}
+
+Rules which bind variables are more complex, as they abstract a variable used in the minimised body. Slice them by first slicing the body, extracting the assumption it needed for the bound variable from $\gamma$, then slice the definition / type annotation using this. Notice that this is the \textit{opposite} direction to typechecking.\footnote{e.g. let bindings type the definition first, then use the result to type the body.}
+
+\paragraph{Annotated lambda.} Set the annotation to $\gamma(x)$ where $\gamma$ is the chosen minimal assumptions for $x$ in slicing the body.\footnote{Assuming wlog. the variable bound by the function is $x$.}
+
+\paragraph{Let bindings.} Slice the definition according to $\gamma(x)$.
+
+\subsubsection{\yo Type Application}
+\label{sec:term-min-tapp}
+
+Type application works by matching the type function's type against the query to collect a list of constraints on the type variable, the \textit{join} of which gives the sliced type argument $\hat\sigma$. The type function is then sliced with a matched query $\widehat{\upsilon}$, where each $\alpha$-position of the query is replaced by $\alpha$ and non-$\alpha$ positions are carried through unchanged. Figure~\ref{fig:tapp-minsub} illustrates the construction on a query whose two $\alpha$-positions give differing constraints.
+
+\begin{figure}[t]
+\centering
+$e \mathbin{{\color{BrickRed}\Uparrow}} \forall\alpha.\,(\alpha \times \alpha \times \mathbf{Bool})$,\quad applied at\quad $\sigma = \mathbf{*} \Rightarrow (\mathbf{Bool} \times \mathbf{Bool})$:
+
+\medskip
+
+\begin{tabular}{r@{\;\;}l}
+\textbf{Query}             & $\upsilon \;=\; \underbrace{\sli[teal]{\mathbf{*} \Rightarrow \gap}}_{\alpha} \;\times\; \underbrace{\sli[teal]{\gap \Rightarrow (\mathbf{Bool} \times \gap)}}_{\alpha} \;\times\; \gap$ \\[16pt]
+\textbf{Matched query}     & $\widehat{\upsilon} \;=\; \alpha \;\times\; \alpha \;\times\; \gap$ \\[8pt]
+\textbf{Constraints}       & $\mathbf{*} \Rightarrow \gap \;\sqsubseteq\; \alpha \qquad \gap \Rightarrow (\mathbf{Bool} \times \gap) \;\sqsubseteq\; \alpha$ \\[8pt]
+\textbf{Constraints Join}  & $\hat\sigma \;=\; \mathbf{*} \Rightarrow (\mathbf{Bool} \times \gap)$ \\
+\end{tabular}
+\caption{Type application.}
+\label{fig:tapp-minsub}
+\end{figure}
+
+\subsection{\no Fixed Point Algorithm for Case Expressions}
+\label{sec:fixed-point}
+\mechfile{Slicing/Synthesis/\\CaseAlgorithm}
+
+\noindent This is the complex case, minimal slices must have no redundant type information from both branches, so the query must be split between the branches. However, simply splitting the query disjointly between the branches is not enough to ensure minimality.
+
+\paragraph{The Overlap Problem.} Suppose a case expression $\mathbf{case}\;e\;\mathbf{of}\;x.\,e_1 \mid y.\,e_2$ synthesises $\tau_1 \sqcup \tau_2$. Suppose we disjointly split a query $\upsilon \in \lfloor \tau_1 \sqcup \tau_2$ into $\upsilon_1 \in \lfloor \tau_1 \rfloor$ and $\upsilon_2 \in \lfloor \tau_2 \rfloor$. Then slice the branches, but as minimal slices are not necessarily exact (TODO: ref counterexample), then they may synthesise strictly more prescise $\psi_1$ and $\psi_2$. In this situation, branch 1 actually only needed to cover what $\psi_2$ didn't cover, which is stricly less than the $\upsilon_1$ it was queried under, so it may not be minimal on this, and vice versa for branch 2.
+\begin{figure}[!htb]
+\centering
+\begin{subfigure}[t]{0.48\textwidth}\centering
+\begin{tikzpicture}[every node/.style={font=\small}, scale=0.7]
+  \draw[thick] (0,0) rectangle (6,0.55);
+  \fill[OliveGreen!30] (0.05,0.05) rectangle (2.4,0.5);
+  \fill[OliveGreen!50!Mulberry!40] (2.4,0.05) rectangle (3.6,0.5);
+  \fill[Mulberry!30]   (3.6,0.05) rectangle (5.95,0.5);
+  \draw[OliveGreen,thick] (0.05,0.05) rectangle (3.6,0.5);
+  \draw[Mulberry,thick]   (2.4,0.05) rectangle (5.95,0.5);
+  \node[above=2pt of {(3,0.55)}] {$\upsilon$};
+  \node[OliveGreen, left=2mm of {(0,0.275)}, font=\small\itshape] {$\psi_1$};
+  \node[Mulberry, right=2mm of {(6,0.275)}, font=\small\itshape] {$\psi_2$};
+  \draw[thick] (2.4,-0.05) -- (2.4,-0.18) -- (3.6,-0.18) -- (3.6,-0.05);
+  \node[font=\scriptsize\itshape] at (3.0,-0.34) {overlap};
+  \draw[thick] (0,-1.05) -- (0,-1.17) -- (2.95,-1.17) -- (2.95,-1.05);
+  \node at (1.475,-1.40) {$\upsilon_1$};
+  \draw[thick] (3.05,-1.05) -- (3.05,-1.17) -- (6,-1.17) -- (6,-1.05);
+  \node at (4.525,-1.40) {$\upsilon_2$};
+\end{tikzpicture}
+\caption{Disjoint split.}
+\label{fig:case-overlap-disjoint}
+\end{subfigure}\hfill
+\begin{subfigure}[t]{0.48\textwidth}\centering
+\begin{tikzpicture}[every node/.style={font=\small}, scale=0.7]
+  \draw[thick] (0,0) rectangle (6,0.55);
+  \fill[OliveGreen!30] (0.05,0.05) rectangle (2.4,0.5);
+  \fill[OliveGreen!50!Mulberry!40] (2.4,0.05) rectangle (3.6,0.5);
+  \fill[Mulberry!30]   (3.6,0.05) rectangle (5.95,0.5);
+  \draw[OliveGreen,thick] (0.05,0.05) rectangle (3.6,0.5);
+  \draw[Mulberry,thick]   (2.4,0.05) rectangle (5.95,0.5);
+  \node[above=2pt of {(3,0.55)}] {$\upsilon$};
+  \node[OliveGreen, left=2mm of {(0,0.275)}, font=\small\itshape] {$\psi_1$};
+  \node[Mulberry, right=2mm of {(6,0.275)}, font=\small\itshape] {$\psi_2$};
+  \draw[thick] (2.4,-0.05) -- (2.4,-0.18) -- (3.6,-0.18) -- (3.6,-0.05);
+  \node[font=\scriptsize\itshape] at (3.0,-0.34) {overlap};
+  \draw[thick] (0,-1.05) -- (0,-1.17) -- (2.4,-1.17) -- (2.4,-1.05);
+  \node[font=\scriptsize] at (1.2,-1.40) {$\upsilon \heytingminus \psi_2$};
+  \draw[thick] (3.6,-1.05) -- (3.6,-1.17) -- (6,-1.17) -- (6,-1.05);
+  \node[font=\scriptsize] at (4.8,-1.40) {$\upsilon \heytingminus \psi_1$};
+\end{tikzpicture}
+\caption{Residual queries.}
+\label{fig:case-overlap-residual}
+\end{subfigure}
+\caption{Abstract View of Overlap and Residuals.}
+\label{fig:case-overlap}
+\end{figure}
+
+\subsubsection{Branch Residuals}
+\label{sec:case-phase1}
+When exactly are two branch slices jointly minimal? Let $\upsilon_1$ and $\upsilon_2$ be the branch queries, then when (see Figure~\ref{fig:case-overlap-residual}):
+\begin{itemize}
+\item $\upsilon_1 \sqsubseteq \upsilon \heytingminus \psi_2$. Branch 1 is queried on not more than is \textit{actually} provided by branch 2 or contained within $\upsilon$.
+\item $\upsilon_2 \sqsubseteq \upsilon \heytingminus \psi_1$. Branch 2 is queried on not more than is \textit{actually} provided by branch 1 or contained within $\upsilon$.
+\item $\upsilon \sqsubseteq \psi_1 \sqcup \psi_2$. The joined branch types actually cover the query.
+\end{itemize}
+It is still possible for $\psi_1$ and $\psi_2$ to overlap, but any overlap is not contained in the queries, so the branches are still minimal.
+ 
+\paragraph{Iteration.} However, these are \textit{mutually dependent} slices, so they need iteration to solve. Let $\upsilon_1^i$ be the query on the $i$th iteration, $(\sigma_1^i, \psi_1^i)$ be the resulting slice and similarly for branch 2. Then iterate setting $\upsilon_1^1 = \upsilon \heytingminus \psi_2^0$, then setting $\upsilon_2^1 = \upsilon \heytingminus \psi_1^1$. Starting at $(\psi_1^0, \psi_2^0) = (\top, \gap)$.
+\begin{figure}[!htb]
+\centering
+\begin{tikzpicture}[
+  font=\small, >=stealth,
+  every node/.style={inner sep=2pt},
+  arr/.style={->, dashed, thick, shorten <=2pt, shorten >=2pt},
+  arrass/.style={->, dashed, thick, shorten <=2pt, shorten >=2pt, draw=assumed}
+]
+  \node (a1) at (0,0)   {$\upsilon_1^1 := \upsilon \heytingminus \psi_2^0 \;\rightsquigarrow\; (\sigma_1^1, \psi_1^1)$};
+  \node (b1) at (5.5,-1) {$\upsilon_2^1 := \upsilon \heytingminus \psi_1^1 \;\rightsquigarrow\; (\sigma_2^1, \psi_2^1)$};
+  \node (a2) at (0,-2)  {$\upsilon_1^2 := \upsilon \heytingminus \psi_2^1 \;\rightsquigarrow\; (\sigma_1^2, \psi_1^2)$};
+  \node (b2) at (5.5,-3) {$\upsilon_2^2 := \upsilon \heytingminus \psi_1^2 \;\rightsquigarrow\; (\sigma_2^2, \psi_2^2)$};
+  \node (dots) at (2.75,-4) {$\vdots$};
+  \draw[arrass] (a1.south east) -- (b1.north west);
+  \draw[arr]    (b1.south west) -- (a2.north east);
+  \draw[arrass] (a2.south east) -- (b2.north west);
+  \draw[arr]    (b2.south west) -- (dots.north east);
+  \node[assumed] (p20) at (10.5, 0)  {$\psi_2^0$};
+  \node[assumed] (p21) at (10.5,-1) {$\psi_2^1$};
+  \node[assumed] (p22) at (10.5,-3) {$\psi_2^2$};
+  \node[assumed] (p2d) at (10.5,-4) {$\cdots$};
+  \node[assumed] at ($(p20)!0.5!(p21)$) {\rotatebox{-90}{$\sqsubseteq$}};
+  \node[assumed] at ($(p21)!0.5!(p22)$) {\rotatebox{-90}{$\sqsubseteq$}};
+  \node[assumed] at ($(p22)!0.5!(p2d)$) {\rotatebox{-90}{$\sqsubseteq$}};
+  \node[assumed, font=\scriptsize\itshape, above=1mm of p20] {(assumed)};
+\end{tikzpicture}
+\caption{Branch Fixed Point Iteration}
+\label{fig:case-iteration}
+\end{figure}
+We wish to show that $\psi_1$ decreases monotonically and $\psi_2$ increases monotonically.
+
+As co-Heyting subtraction is anti-monotone in its second argument (TODO: ref), then as $\psi_2$ increases,\footnote{All use of increase/decrease here is in the monotonic sense.} $\upsilon_1$ decreases and as $\psi_1$ decreases, $\upsilon_2$ increases. At the start, $\psi_2^0 = \gap$, so $\psi_2$ increases on the first step, so $\upsilon_1$ decreases on the first step.
+
+By monotonicity of minimum synthesis slices (TODO: ref), we can find $\sigma_1$ decreasing and hence $\psi_1$ decreasing. Hence, $\upsilon_2$ increases (by anti-monotonicity). However, an upwards monotonicity theorem, which would conclude the next step, that $\psi_2$ monotonically increases, does \textit{not} hold (TODO: ref). But, when it does, $\upsilon_1$ would decrease inductively, completing the loop. 
+
+Hence, \textit{when the chain $\psi_2$ monotonically increases}, then $\psi_1$ monotonically decreases. So, by Kleene's finite fixed point theorem (TODO: ref) this iteration leads to a fixed point with $\upsilon_1 = \upsilon \heytingminus \psi_2$ and $\upsilon_2 \heytingminus \psi_1$, satisfying the first two constraints for jointly minimal branches. And as $\upsilon \sqsubseteq \psi_1$ and $\upsilon_2 \sqsubseteq \psi_2$ by validity of synthesis slices, then the third condition holds $\upsilon \sqsubseteq \psi_1 \sqcup \psi_2$ by the co-Heyting algebra properties.
+
+\begin{counterexamplebox}
+\mechbox{\textnormal{\textbf{¬}}upward-closure-\\min-fixedassms}%
+\begin{counterexample}[\yo Upwards Non-Monotonicity]\label{lem:dual-mono-fails}
+For $\Gamma = (z : \mathbf{*}\times\mathbf{*})$ and $D : \synthesis{\mathbf{if}\;\gap\;\mathbf{then}\;z\;\mathbf{else}\;(\mathbf{*}, \gap)}{\mathbf{*}\times\mathbf{*}}$, the unique minimal slices at $\upsilon = \mathbf{*}\times\mathbf{*}$ and $\upsilon' = \mathbf{*}\times\gap$ are incomparable:
+\begin{center}
+\fullslice{z : \sli{\mathbf{*}\times\mathbf{*}}}{\sli{\mathbf{if}}\;\gap\;\sli{\mathbf{then}\;z\;\mathbf{else}}\;\gap}
+\quad$\not\sqsupseteq$\quad
+\fullslice{z : \gap}{\sli{\mathbf{if}}\;\gap\;\sli{\mathbf{then}}\;\gap\;\sli{\mathbf{else}\;(\mathbf{*}, \gap)}}
+\end{center}
+\end{counterexample}
+\end{counterexamplebox}
+
+Therefore, this part of the algorithm is partial. In reality, this covers most cases, and you can revert to the brute force algorithm otherwise. Devising a complete (non-brute force) algorithm is left to future work. Another potential downside of this algorithm is that it is \textit{biased}, it prefers to select typing information from branch 1.
+
+\subsubsection{Scrutinee Descent}
+\label{sec:case-phase2}
+
+The branches are now jointly minimal under the full context. But, case statements also include \textit{bindings}, whose type are sourced by another term. However, unlike with let bindings, we can't simply take the minimal assumptions of the branches, because those may only provide enough to synthesise the residual queries $\upsilon_i$, which may not cover the original query $\upsilon$.\footnote{We only have that $\upsilon \sqsubseteq \psi_1 \sqcup \psi\_2$.}
+
+As case scrutinee terms are typically small in real world code (e.g. if statements), we can simply do a brute-force descent on the scrutinee. But, if the term is significantly larger than the type, it makes sense to can perform a brute-force descent on the bound types to find a minimal pair of assumptions to cover the query $\upsilon$: that is, $x : \phi_1; \Gamma \vdash \sigma_1 \vdash \psi_1'$ and $y : \phi_2; \Gamma \vdash \sigma_2 \vdash \psi_2'$ with $\upsilon \sqsubseteq \psi_1' \sqcup \psi_2'$. Then slice the scrutinee according to $\phi_1 + \phi_2$ and use this as a smaller starding point to descend on. 
+
+\subsubsection{The Assumption Slice}
+\label{sec:case-phase3}
+
+At this point we have a term-minimal slice, but we still need a minimal assumption slice. Again, this does not directly follow from the minimal assumptions for the branches individually, due to \textit{aliasing} of common assumptions. However, you can join these individual minima alongside the minimal assumptions for the scrutinee (calculated by brute-force\footnote{\textit{Ascending} from $\emptyset$ being more efficient here.} or over-approximated using the slice on $\phi_1 + \phi_2$). This gives a set of valid assumptions to synthesise $\upsilon$ which will be \textit{near-minimum} and work as a good starting point to brute-force from.
+
+\subsection{\po Calculating Analysis Slices}
+\label{sec:ana-slice-calculus}
+\mechfile{Slicing/Analysis/\\AnaSliceCalc}
+
+Analysis slices work on context classifications, and a similar judgement can be defined, but upon context:
+\[ \mathit{Cls} \mathbin{\blacktriangleleft} \upsilon \;\rightsquigarrow\; (\kappa,\,\gamma,\,\psi), \]
+producing a context slice $\kappa \in \lfloor\C\rfloor$, an assumption slice $\gamma \in \lfloor\Gamma\rfloor$, and an \textit{induced outer slice} $\psi \in \lfloor\tau_p\rfloor$ -- the slice of the outer-derivation type $\tau_p$ that the resulting context slice $\kappa$ produces (the synthesis-slice analogue of $\phi$ in Section~\ref{sec:syn-slice-def}). I give the two most interesting cases: function application, which makes use of a synthesis slice, and unannotated lambdas.
+
+\paragraph{Function application ($e \circ_2 \C$).} Recursively slice the argument context $\C$ at $\upsilon$ to obtain its induced outer slice $\upsilon' \in \lfloor\tau_1\rfloor$, then synthesis-slice the function $e$ at the arrow query $\upsilon' \Rightarrow \gap$. The codomain of the function's sliced arrow type is the application's induced outer slice.
+
+\paragraph{Unannotated lambda ($\lambda x.\,\C$).} The body recurses; its used-assumption slice decomposes as $\gamma', x{:}\hat\tau_1$, with $\hat\tau_1 \in \lfloor\tau_1\rfloor$ the binder's slice. The induced outer slice is the arrow $\hat\tau_1 \Rightarrow \upsilon'$:
+{\small
+\[
+\inference[$\mathit{minA\lambda{\Rightarrow}}$]
+  {\tau \sqcup \gap \Rightarrow \gap \equiv \tau_1 \Rightarrow \tau_2
+   &
+   \overbrace{\ctxclass[\Delta;\,\Gamma,\, x{:}\tau_1]{\C}{{\color{BlueViolet}\Downarrow}\,\tau_2}{\Delta';\,\Gamma'}{{\color{BlueViolet}\Leftarrow}\,\tau_f}}^{\textstyle\mathit{Cls}'}
+   \mathbin{\blacktriangleleft} \upsilon \rightsquigarrow (\kappa',\,(\gamma', x{:}\hat\tau_1),\,\upsilon')}
+  {\underbrace{\ctxclass{\lambda x.\,\C}{{\color{BlueViolet}\Downarrow}\,\tau}{\Delta';\,\Gamma'}{{\color{BlueViolet}\Leftarrow}\,\tau_f}}_{\textstyle \lambda x.\,\mathit{Cls}'}
+   \mathbin{\blacktriangleleft} \upsilon \rightsquigarrow
+   (\lambda x.\,\kappa',\;\gamma',\;\hat\tau_1 \Rightarrow \upsilon')}
+\]
+}
+
+%%% Local Variables:
+%%% mode: LaTeX
+%%% TeX-master: "PolymorphicTypeSlicing"
+%%% End:

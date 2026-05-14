@@ -1,0 +1,358 @@
+\section{Synthesis Slices}
+\label{sec:synthesis}
+
+\sectionlegend
+
+\providecommand{\synslice}[2]{\mathit{SynSlice}\;#1 \mathbin{\blacktriangleleft} #2}
+\providecommand{\minsynslice}[2]{\mathit{MinSynSlice}\;#1 \mathbin{\blacktriangleleft} #2}
+\providecommand{\exactsynslice}[2]{\mathit{ExactSynSlice}\;#1 \mathbin{\blacktriangleleft} #2}
+\providecommand{\isMin}[1]{\mathsf{IsMinimal}\,(#1)}
+\providecommand{\joinsyn}{\sqcup}
+\providecommand{\meetsyn}{\sqcap}
+\providecommand{\pairsyn}{\times}
+
+\noindent The type information of a sub-term in a bidirectional type system is derived either from \textit{within} the term by synthesis, or from the surrounding context. This chapter concerns explaining the \textit{synthesised} type.
+
+\subsection{\yo Synthesis Slices}
+\label{sec:syn-slice-def}
+\mechfile{Slicing/Synthesis/\\Synthesis}
+
+Consider a `program' $P = (\Delta, \Gamma, e)$, that is, typing assumptions and expression. When the program synthesises a type, all of its type information is contained within the synthesis derivation:
+\[ D \;:\; \synthesis{e}{\tau} \]
+Synthesis slices work in the following manner: Given the synthesis derivation $D$, we may \textit{query} the type $\tau$ by taking a slice $\upsilon$ in $\lfloor \tau \rfloor$. A resulting synthesis slice is a `program slice' $\rho = (\gamma, \varsigma)$ in $\lfloor \Gamma , e\rfloor$ which synthesises a type at least as precise as the query $\upsilon$; this corresponds to a highlighted version of the original program. 
+
+Intuitively, $\upsilon$ specifies the part of $\tau$ we wish to explain; for example, querying $\upsilon = \mathit{Int} \Rightarrow \gap$ for $\tau = \mathit{Int} \Rightarrow \mathit{Bool}$ asks ``which parts of the program account for the domain being $\mathit{Int}$?''. Importantly, the resulting program slice might not include \textit{all} the program regions relevant to the query type, but will necessarily provide a consistent subset which suffice to totally \textit{explain} (independently synthesise) the query.
+
+\begin{definition}[\yo Synthesis slice]
+\label{def:syn-slice}
+A \textit{synthesis slice} of $D : \synthesis{e}{\tau}$ on $\upsilon \in \lfloor \tau \rfloor$, written $\synslice{D}{\upsilon}$, is a four-tuple, notated:
+\[ \rho \mathbin{{\color{BrickRed}\Uparrow}} \phi \mathbin{\sqsupseteq} \upsilon \mathbin{\in} d \]
+where $\rho = (\gamma, \varsigma) \in \lfloor \Gamma, e\rfloor$ and derivation $d : \synthesis[\Delta; \gamma]{\varsigma}{\psi}$ for $\psi \sqsupseteq \upsilon$, and $\psi \in \lfloor \tau \rfloor$ by graduality (Theorem~\ref{thm:graduality-syn}).
+\end{definition}
+
+Many such synthesis slices exist. In particular, the original program $(\Gamma, e)$ is necessarily a synthesis slice: $\Gamma, e \mathbin{\color{BrickRed}\Uparrow} \tau \sqsupseteq \upsilon \mathbin{\in} D$. And for $\synslice{D}{\gap}$, every slice of $(\Gamma, e)$ is a valid synthesis slice.
+
+\begin{figure}[t]
+\centering
+\begin{tikzcd}[column sep=large, row sep=large]
+& \rho \arrow[r, "\sqsubseteq" {sloped}] \arrow[d, "{\color{BrickRed}\Uparrow}"'] & (\Gamma, e) \arrow[d, "{\color{BrickRed}\Uparrow}"] \\
+\upsilon \arrow[r, "\sqsubseteq" {sloped}] & \phi \arrow[r, induced, "\sqsubseteq" {sloped}, "\text{(by graduality)}"', dashed] & \tau
+\end{tikzcd}
+\caption{Diagram of a synthesis slice; $\upsilon \sqsubseteq \phi$ is the validity witness.}
+\label{fig:fundamental-triangle}
+\end{figure}
+
+\paragraph{Exactness.} Note that synthesis slices do not strictly demand $\upsilon = \phi$. I terms such slices as \textit{exact} synthesis slices.
+
+\begin{definition}[\yo Exact synthesis slice]
+\label{def:exact-syn-slice}
+$\exactsynslice{D}{\upsilon}$ is a synthesis slice $s : \synslice{D}{\upsilon}$ together with a proof $s.\phi \sqsubseteq \upsilon$.
+\end{definition}
+
+However, exact synthesis slices are too strong a constraint to use in general. They need not exist:
+
+\begin{counterexamplebox}
+\marginnote{\raggedleft\tiny\color{black!55}\texttt{Slicing/\\Counterexamples\\[4pt]\textnormal{\textbf{¬}}⊔syn-\\preserves-join}}%
+\begin{counterexample}[\yo Non-Existence of all Exact Synthesis Slices]\label{lem:exact-not-exist}
+Consider $x \mathbin{:} \mathbf{*} \Rightarrow \mathbf{*} \vdash (x, x) {\color{BrickRed}\Uparrow} (* \Rightarrow *) \times (* \Rightarrow *)$, and query $\upsilon = (\mathbf{*} \Rightarrow \gap) \times (\gap \Rightarrow \mathbf{*})$. 
+
+Any strictly smaller slice of either $x : * \Rightarrow *$ or $(x, x)$ synthesises a type strictly less precise that $\upsilon$. Yet the original program synthesises $(* \Rightarrow *) \times (* \Rightarrow *)$, strictly more precise than $\upsilon$.
+\end{counterexample}
+\end{counterexamplebox}
+
+\subsection{\yo Minimality}
+\label{sec:minimality}
+\mechfile{Slicing/Synthesis/\\Synthesis}
+
+Synthesis slice give us \textit{some} explanation of the query, but many are clearly useless, such as the original program itself, which corresponds to fully highlighting the program. We want to find minimal slices: those that further slicing any part of the program makes the slice invalid (synthesising a type insufficient to cover the query).
+\begin{definition}[\yo Minimality]
+\label{def:isminimal}
+For an element $a$ of a poset, $a$ is minimal, $\isMin{a}$, when all $a'$ with $a' \sqsubseteq a$ are in fact equal to $a$, have $a' = a$.
+\end{definition}
+\begin{definition}[\yo Minimal Synthesis Slices]
+A $\minsynslice{D}{\upsilon}$ is a $\synslice{D}{\upsilon}$ such that the resultant program slice $\rho$ is minimal in $\{\rho \mid \rho {\color{BrickRed}\Uparrow} \psi \sqsupseteq \upsilon \in d : \synslice{D}{\upsilon}\}$.
+\end{definition}
+
+\subsection{\po Existence of Minimal Slices}
+\label{sec:min-exists}
+\mechfile{Slicing/Synthesis/\\Synthesis}
+
+Crucially, any synthesis slice has a minimal slice below it (or is minimal):
+\begin{majortheorembox}
+\mechbox{minExists}%
+\begin{theorem}[\po Existence of minimal slices]\label{thm:min-exists}
+For every $s : \synslice{D}{\upsilon}$, there exists $m : \minsynslice{D}{\upsilon}$ with $m \sqsubseteq s$.
+\end{theorem}
+\end{majortheorembox}
+
+\begin{proof}
+The slice lattice $\lfloor \Gamma, e \rfloor$ is finite. Hence, $\{\,s' : \synslice{D}{\upsilon} \mid s' \sqsubseteq s\,\}$ is finite, which can be decided simply by enumerating all $s' : \synslice{D}{\upsilon}$ and deciding $s' \sqsubseteq s$. If this set is empty, then $s'$ is minimal.
+\end{proof}
+
+Consequentially, any derivation $D$ has a minimal synthesis slice, as the original program is a trivial inhabitant of $\synslice{D}{\upsilon}$ for all $\upsilon$.
+
+The proof above is not a practical algorithm. In reality, for any term, you can efficiently compute the list of maximal slices that are strictly less precise than some given term (by omitting exactly \textit{one} leaf from the AST). Then pick the first maximal strict slice that satisfies the query and recurse; if none of the slices satsify the query, then you have found a minimal slice. See Figure~\ref{fig:syn-slice-existence} for an example lattice to explore, marking all minima (of which there may be multiple, Counterexample~\ref{lem:min-not-unique}). This is $\mathcal{O}(n \times T)$ where $n$ is the program size and $T$ the type checking complexity; type checking is linear in the program size for this calculus, so finding a minimal slice is $\mathcal{O}(n^2)$.
+
+\begin{counterexamplebox}
+\begin{counterexample}[\no Non-Uniqueness of Minimal Slices]\label{lem:min-not-unique}
+The program $\mathbf{if}\;\mathbf{true}\;\mathbf{then}\;\mathbf{*}\;\mathbf{else}\;\mathbf{*}$ has two incomparable minimal slices for $\upsilon = \mathbf{*}$: $\mathbf{if}\;\gap\;\mathbf{then}\;\mathbf{*}\;\mathbf{else}\;\gap$ and $\mathbf{if}\;\gap\;\mathbf{then}\;\gap\;\mathbf{else}\;\mathbf{*}$.
+\end{counterexample}
+\end{counterexamplebox}
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[
+    >={Stealth[length=4pt,width=3pt]},
+    prognode/.style={draw=latticecolor!55, fill=white, rounded corners=2pt,
+                     inner sep=2.2pt, font=\scriptsize},
+    minnode/.style={draw=OliveGreen!70!black, fill=white, line width=0.9pt,
+                    ellipse, minimum height=0.95cm,
+                    inner xsep=2pt, inner ysep=2pt, font=\scriptsize},
+    exactnode/.style={draw=OliveGreen!75!black, fill=white, line width=1.2pt,
+                      rectangle, minimum width=0.85cm, minimum height=0.85cm,
+                      inner sep=2pt, font=\scriptsize},
+    progarrow/.style={->, latticecolor!75, line width=0.95pt},
+    synarrow/.style={->, BrickRed, line width=0.9pt, dashed,
+                     dash pattern=on 3pt off 2pt,
+                     shorten >=2.5pt, shorten <=2.5pt}
+]
+\node[prognode]  (T)   at ( 0.0, 8.6) {$(\rho_\top,\;\tau)$};
+\node[prognode]  (A)   at (-4.4, 6.9) {$(\rho_a,\;\phi_a)$};
+\node[prognode]  (B)   at (-0.6, 6.9) {$(\rho_b,\;\phi_b)$};
+\node[prognode]  (C)   at ( 3.5, 6.9) {$(\rho_c,\;\phi_c)$};
+\node[prognode]  (D)   at (-6.0, 5.2) {$(\rho_d,\;\phi_d)$};
+\node[prognode]  (E)   at (-2.5, 4.5) {$(\rho_e,\;\phi_e)$};
+\node[prognode]  (F)   at ( 1.0, 5.2) {$(\rho_f,\;\phi_f)$};
+\node[minnode]   (G)   at ( 4.5, 5.2) {$(\rho_g,\;\phi_g)$};
+\node[minnode]   (H)   at (-5.2, 3.45) {$(\rho_h,\;\phi_h)$};
+\node[exactnode] (I)   at (-1.7, 3.45) {$(\rho_i,\;\upsilon)$};
+\node[prognode]  (J)   at ( 3.5, 3.45) {$(\rho_j,\;\phi_j)$};
+\node[prognode]  (K)   at (-3.0, 1.55) {$(\rho_k,\;\phi_k)$};
+\node[prognode]  (Bot) at ( 1.5, 0.15) {$(\gap,\;\gap)$};
+
+\begin{scope}[on background layer]
+  \fill[OliveGreen!12]
+    (-7.6, 9.4) -- (-7.6, 2.50)
+    .. controls (-6.5, 2.15) and (-3.5, 2.85) .. (-1.70, 3.40)
+    .. controls (-0.8, 3.95) and ( 3.5, 4.55) .. ( 5.7, 4.50)
+    -- (5.7, 9.4) -- cycle;
+  \draw[OliveGreen!55!black, line width=1.5pt, line cap=round]
+    (-7.6, 2.50)
+    .. controls (-6.5, 2.15) and (-3.5, 2.85) .. (-1.70, 3.40)
+    .. controls (-0.8, 3.95) and ( 3.5, 4.55) .. ( 5.7, 4.50);
+  \draw[OliveGreen!50!black, line width=0.3pt, dotted]
+    (-7.6, 9.4) -- (5.7, 9.4)
+    (-7.6, 9.4) -- (-7.6, 2.50)
+    ( 5.7, 9.4) -- ( 5.7, 4.50);
+\end{scope}
+
+\draw[progarrow] (T) -- (A);
+\draw[progarrow] (T) -- (B);
+\draw[progarrow] (T) -- (C);
+\draw[progarrow] (A) -- (D);
+\draw[progarrow] (A) -- (E);
+\draw[progarrow] (B) -- (E);
+\draw[progarrow] (B) -- (F);
+\draw[progarrow] (C) -- (F);
+\draw[progarrow] (C) -- (G);
+\draw[progarrow] (D) -- (H);
+\draw[progarrow] (E) -- (I);
+\draw[progarrow] (F) -- (I);
+\draw[progarrow] (F) -- (J);
+\draw[progarrow] (G) -- (J);
+\draw[progarrow] (H) -- (K);
+\draw[progarrow] (I) -- (K);
+\draw[progarrow] (I) -- (Bot);
+\draw[progarrow] (J) -- (Bot);
+\draw[progarrow] (K) -- (Bot);
+
+\draw[synarrow] (T) to[bend right=8]  (A);
+\draw[synarrow] (T) to[bend right=8]  (B);
+\draw[synarrow] (T) to[bend right=8]  (C);
+\draw[synarrow] (A) to[bend right=8]  (D);
+\draw[synarrow] (A) to[bend right=8]  (E);
+\draw[synarrow] (B) to[bend right=8]  (E);
+\draw[synarrow] (B) to[bend right=8]  (F);
+\draw[synarrow] (C) to[bend right=8]  (F);
+\draw[synarrow] (C) to[bend right=8]  (G);
+\draw[synarrow] (D) to[bend right=6]  (H);
+\draw[synarrow] (E) to[bend right=6]  (I);
+\draw[synarrow] (F) to[bend right=6]  (I);
+\draw[synarrow] (F) to[bend right=6]  (J);
+\draw[synarrow] (G) to[bend right=6]  (J);
+\draw[synarrow] (H) to[bend right=6]  (K);
+\draw[synarrow] (I) to[bend right=6]  (K);
+\draw[synarrow] (I) to[bend right=6]  (Bot);
+\draw[synarrow] (J) to[bend right=6]  (Bot);
+\draw[synarrow] (K) to[bend right=6]  (Bot);
+
+\draw[synarrow] (D) -- (E);
+\draw[synarrow] (F) -- (G);
+\draw[synarrow] (E) -- (H);
+
+\node[exactnode] at (I) {$(\rho_i,\;\upsilon)$};
+
+\node[circle, fill=white, draw=OliveGreen!55!black, line width=0.7pt,
+      inner sep=1pt, minimum size=20pt,
+      text=OliveGreen!35!black]
+  at (-7.0, 1.55) (vlabel) {\large $\boldsymbol{\upsilon}$};
+\draw[OliveGreen!55!black, line width=0.6pt, dashed,
+      dash pattern=on 2pt off 1.6pt]
+  (vlabel.north) -- (-7.0, 2.30);
+
+\node[anchor=north west, font=\small\bfseries, OliveGreen!35!black]
+  at (-7.4, 9.25) {$\upsilon \sqsubseteq \phi_i$};
+\node[anchor=south west, font=\small\bfseries, gray!50!black]
+  at (-7.4, 0.20) {$\upsilon \not\sqsubseteq \phi_i$};
+
+\end{tikzpicture}
+\caption{An example Hasse diagram of $\lfloor \rho_\top \rfloor$ overlayed with type precision relations (mostly induced by graduality). {\color{latticecolor}Purple}: program precision $\sqsubset$. {\color{BrickRed}Red}: type precision $\sqsubseteq$. {\color{OliveGreen!60!black}Ellipses}: minimal synthesis slices. {\color{OliveGreen!60!black}Square}: an exact minimal slice}
+\label{fig:syn-slice-existence}
+\end{figure}
+
+Refining a query $\upsilon$ to a smaller $\upsilon' \sqsubseteq \upsilon$ descends further in the lattice, finding minima which are less precise, but consistent with, the previous slice for $\upsilon$.
+\begin{theorem}[\po Monotonicity of minimal slices]\mechbox{minMono}\label{thm:mono}
+If $\upsilon_1 \sqsubseteq \upsilon_2$ in $\lfloor\tau\rfloor$ and $m_2 : \minsynslice{D}{\upsilon_2}$, then there exists $m_1 : \minsynslice{D}{\upsilon_1}$ with $m_1.\rho \sqsubseteq m_2.\rho$.
+\end{theorem}
+
+\subsection{\yo Sub-slices}
+\label{sec:sub-slices}
+\mechfile{Slicing/Synthesis/\\FixedAssmsCalc}
+
+In practice, a user may not arrive at a query atomically. One might look at a synthesised type, then refine the query to explore one component of it, then into a sub-component. For this use case we get successive queries forming a descending chain $\upsilon \sqsupseteq \upsilon' \sqsupseteq \upsilon'' \sqsupseteq \cdots$. Due to monotonicity, this chain can be associated with a chain of program slices $\rho \sqsupseteq \rho' \sqsubseteq \cdots$.
+
+\paragraph{Example.} Refining $\upsilon = \mathbf{*}\Rightarrow\mathbf{*}$ to $\upsilon' = \mathbf{*}\Rightarrow\gap$ on $e = \mathbf{if}\;\mathbf{true}\;\mathbf{then}\;x\;\mathbf{else}\;y$:
+\begin{center}
+\fullslice{x : \sli{\mathbf{*} \Rightarrow \mathbf{*}}}{\sli{\mathbf{if}}\;\mathbf{true}\;\sli{\mathbf{then}\;x\;\mathbf{else}}\;\gap}
+\quad$\xrightarrow{\upsilon' \sqsubseteq \upsilon}$\quad
+\fullslice{x : \sli{\mathbf{*} \Rightarrow}\,\mathbf{*}}{\sli{\mathbf{if}}\;\mathbf{true}\;\sli{\mathbf{then}\;x\;\mathbf{else}}\;\gap}
+\end{center}
+
+\paragraph{Branch hopping.} This descending chain of program slices is useful because it intuitively aligns with the users thinking of \textit{refining} and existing slice, and retrieving a refined program consistent with the last query. Picking random minimal slices will not necessarily form such a chain, giving rise to `branch hopping' where highlighted regions switch between branches when refining the query, which is undesirable from a UX perspective. For example, refining $\upsilon = \mathbf{*}\Rightarrow\mathbf{*}$ to $\upsilon' = \gap\Rightarrow\mathbf{*}$:
+\begin{center}
+\fullslice{x : \sli{\mathbf{*} \Rightarrow \mathbf{*}}}{\sli{\mathbf{if}}\;\mathbf{true}\;\sli{\mathbf{then}\;x\;\mathbf{else}}\;\gap}
+\quad$\xrightarrow{\upsilon' \sqsubseteq \upsilon}$\quad
+\fullslice{y : \mathbf{*}\,\sli{\Rightarrow \mathbf{*}}}{\sli{\mathbf{if}}\;\mathbf{true}\;\sli{\mathbf{then}}\;\gap\;\sli{\mathbf{else}\;y}}
+\end{center}
+
+\subsection{\yo Decompositions}
+\label{sec:decompositions}
+\mechfile{Slicing/Synthesis/\\Decompositions}
+
+Each compound typing rule comes with a \textit{slice combinator}: an operation that builds a synthesis slice from slices of the typing rule's premises, joining their shared assumptions. All minimal slices of compound terms can be expressed as minimal slices of the sub-terms combined with these combinators. This suggests the existence of a compositional rule constructing minimal slices from minimal slices of the sub-terms following the structure of typing derivations.
+
+\begin{majortheorembox}
+\mechbox{min-*-\\decomposability}%
+\begin{theorem}[\yo Decompositions]\label{thm:decomp-master}
+For each compound type rule $R$ with slice combinator $\oplus_R$, every minimal slice of an $R$-derivation factors as $\oplus_R(m_1,\ldots,m_n)$ for minimal sub-slices $m_i$ of the typing rule's subderivations at sub-queries determined by the rule.
+\end{theorem}
+\end{majortheorembox}
+\mastercases
+
+I give the two of the cases: the product rule and the let binding rule. The remaining cases are similar.
+
+\subsubsection{\yo Products}
+\label{sec:case-pair}
+
+Given slices $s_1 : \synslice{D_1}{\upsilon_1}$ and $s_2 : \synslice{D_2}{\upsilon_2}$ for the two components of a pair $D = \synr{Pair}\,D_1\,D_2$, we form their product slice $s_1 \pairsyn s_2 : \synslice{D}{\upsilon_1 \times \upsilon_2}$ by joining the two assumption slices ($\gamma^{\sqcup} = \gamma_1 \sqcup \gamma_2$), and pairing the slices $(s_1.\varsigma, s_2.\varsigma)$, which synthesise (possibly more precise)\footnote{Due to $\gamma^{\sqcup}$ being larger than $\gamma_1$ and $\gamma_2$} types $\phi_1' \times \phi_2' \sqsupseteq s_1.\phi \times s_2.\phi \sqsupseteq \upsilon_1 \times \upsilon_2$. For this combinator, we get the following decomposition theorem:
+
+\begin{thmcase}[\yo Case: Products]\mechbox{min-prod-\\decomposability}\label{thm:min-prod-decomp}
+Let $m : \minsynslice{\synr{Pair}\,D_1\,D_2}{\upsilon_1 \times \upsilon_2}$. Then there exist minimal $m_1 : \minsynslice{D_1}{\upsilon_1}$ and $m_2 : \minsynslice{D_2}{\upsilon_2}$ with $m = m_1 \pairsyn m_2$.
+\end{thmcase}
+
+\paragraph{\yo Converse Failure}
+\label{sec:ce-prod-not-closed-min}
+
+However, the converse is not true:
+
+\begin{counterexamplebox}
+\mechbox{\textnormal{\textbf{¬}}\&syn-preserves-\\minimality}%
+\begin{counterexample}[\yo Paired minimal slices are not necessarily minimal]\label{lem:prod-not-minimal}
+
+Consider two minimal slices, both on query $* \Rightarrow *$:
+\begin{center}
+\fullslice{x : \sli{\mathbf{*} \Rightarrow}\, \mathbf{*},\; y : \mathbf{*}\, \sli{\Rightarrow \mathbf{*}}}{\sli{\mathbf{if}}\;\mathbf{true}\;\sli{\mathbf{then}\;x\;\mathbf{else}\;y}}
+\quad \text{and}\quad
+\fullslice{x : \sli{\mathbf{*} \Rightarrow \mathbf{*}}}{\sli{x}}
+\end{center}
+Note that left slice is minimal due to the assumption slice, omitting either $x$ or $y$ would no longer synthesise $* \Rightarrow *$. However, the pair combinator, which pairs the expression slices and joins the assumption slices, produces:
+\begin{center}
+\fullslice{x : \sli{\mathbf{*} \Rightarrow \mathbf{*}},\; y : \mathbf{*}\, \sli{\Rightarrow \mathbf{*}}}{\sli{(\mathbf{if}}\;\mathbf{true}\;\sli{\mathbf{then}\;x\;\mathbf{else}\;\slr{y},\; x)}}
+\end{center}
+Which is \textit{not} minimal, the $y$ outlined in red can be removed while still synthesising $(* \Rightarrow *) \times (* \Rightarrow *)$ (the natural product of the queries of the components).
+\end{counterexample}
+\end{counterexamplebox}
+
+Hence, we cannot simply recurse through the typing derivation to calculate a slice on $\upsilon_1 \times \upsilon_2$ from sub-slices of the components on $\upsilon_1$ and $\upsilon_2$ respectively. Section~\ref{sec:algorithms} solves this issue.
+
+\subsubsection{\yo Let Bindings}
+\label{sec:let-decomp}
+
+A more subtle case is of let-bindings, which has difference assumptions for its two premises:
+\[\inference[\synr{Let}]{
+  \synthesis{e_1}{\tau_1}
+  &
+  \synthesis[\Delta;\,\Gamma, x:\tau_1]{e_2}{\tau_2}
+}{\synthesis{\mathbf{let}\;x = e_1\;\mathbf{in}\;e_2}{\tau_2}}\]
+A slice of a let-expression can be constructed from a slice $s_1$ of the definition and a slice $s_2$ of the body, constrained with a assumption consistency condition: the body's used assumptions for the bound variable $x$ must be \textit{at most as precise as} the type synthesised by the slice of the definition:
+\[ s_2.\gamma(x) \mathbin{\sqsubseteq} s_1.\phi \]
+Then, upon joining the assumptions for the two slices, we must remove the assumption on $x$ from the body (notated $\gamma_{\setminus x}$, as this is now provided by the definition: 
+\[s_1 \texttt{def} s\_2 \triangleq (s_1.\gamma \sqcup s_2.\gamma_{\setminus x},\; \mathbf{let}\;x = s_1.\varsigma\;\mathbf{in}\;s_2.\varsigma)\]
+
+\begin{thmcase}[Case: Bindings]\mechbox{min-def-\\decomposability}\label{thm:min-def-decomp}
+Let $m : \minsynslice{\synr{Let}\,D_1\,D_2}{\upsilon}$. Then there exists $\phi_1 \in \lfloor\tau_1\rfloor$ and minimal slices $m_1 : \minsynslice{D_1}{\phi_1}$ and $m_2 : \minsynslice{D_2}{\upsilon}$ satisfying $m_2.\gamma(x) \sqsubseteq m_1.\phi$, with $m = m_1 \mathbin{\mathsf{def}} m_2$.
+\end{thmcase}
+
+\subsection{\yo Contribution Slices}
+\label{sec:join-slices}
+\mechfile{Slicing/Synthesis/\\Synthesis}
+
+A natural way represent a minimal slice that retains \textit{all} information relevant to a query type query would be to \textit{join} all minimal slices for the slices, which is clearly unique. For this to make sense, closure of synthesis slices under joins is the crucial, joining two synthesis slices explaining $\upsilon$ should still explain $\upsilon$ fully.
+
+This is a second instance where exact synthesis slices are too strong, we do \textit{not} get that joining two exact slices synthesises exactly the joined query: 
+
+\begin{counterexamplebox}
+\mechbox{\textnormal{\textbf{¬}$\OLDsqcup$}syn-closed}%
+\begin{counterexample}[\yo Joins do not preserve exactness]\label{lem:exact-not-closed}
+Consider $D : \synthesis[(x : \mathbf{*})]{x}{\mathbf{*}}$. For the query $\upsilon = \gap$, consider two exact (but not minimal) slices: $x : \gap \vdash x {\color{BrickRed}\Uparrow} \gap$ and $x : * \vdash \gap {\color{BrickRed}\Uparrow} \gap$.
+
+However, their join synthesises $*$: $x : * \vdash x {\color{BrickRed}\Uparrow} *$, despite the join of the queries being $\gap$. This synthesis is not exact.
+\end{counterexample}
+\end{counterexamplebox}
+
+Even if we restrict this the exact slices to be minimal:
+
+\begin{counterexamplebox}
+\mechbox{\textnormal{\textbf{¬}$\OLDsqcup$}syn-preserves-\\join}%
+\begin{counterexample}[\yo Joins do not preserve exactness, even under minimality]\label{lem:join-not-tight}
+Consider $D = \synthesis[x : * \Rightarrow *]{(x, x)}{(\mathbf{*} \Rightarrow \mathbf{*}) \times (\mathbf{*} \Rightarrow \mathbf{*})}$.
+Then for queries $\upsilon_1 = \gap \times (\gap \Rightarrow \mathbf{*})$ and $\upsilon_2 = (\mathbf{*} \Rightarrow \gap) \times \gap$, we get minimal slices $(x : \gap \Rightarrow *,\ (\gap, x))$ and $(x : * \Rightarrow \gap),\ (x, \gap)$ respectively.
+
+Joining these minimal slices gives the original derivation $D$, which synthesises $(* \Rightarrow *) \times (* \Rightarrow *) \sqsupset (* \Rightarrow \gap) \times (\gap \Rightarrow *) = \upsilon_1 \times \upsilon_2$.
+\end{counterexample}
+\end{counterexamplebox}
+
+However, the weaker validity condition for regular synthesis slices $\upsilon \sqsubseteq \phi$, does allow for join closure.
+
+\begin{majortheorembox}
+\mechbox{\_$\OLDsqcup$syn\_}%
+\begin{theorem}[\yo Closure of Synthesis Slices under Join]\label{thm:join-syn}
+For $s_1 : \synslice{D}{\upsilon_1}$ and $s_2 : \synslice{D}{\upsilon_2}$, then $s_1 \joinsyn s_2 : \synslice{D}{\upsilon_1 \sqcup \upsilon_2}$ with program slice $\rho^{\sqcup} = \rho_1 \sqcup \rho_2$.
+\end{theorem}
+\end{majortheorembox}
+
+\begin{figure}[t]
+\centering
+\begin{tikzcd}[column sep=large, row sep=large]
+\rho_1 \arrow[r, "\sqsubseteq"] \arrow[d, "{\color{BrickRed}\Uparrow}"'] & {\color{induced} \rho^{\sqcup}} \arrow[d, "{\color{BrickRed}\Uparrow}"] & \rho_2 \arrow[l, "\sqsupseteq"'] \arrow[d, "{\color{BrickRed}\Uparrow}"] \\
+\phi_1 & {\color{induced} \phi'} & \phi_2 \\
+\upsilon_1 \arrow[u, "\sqsubseteq" {sloped}] \arrow[r, "\sqsubseteq"] & {\color{induced} \upsilon_1 \sqcup \upsilon_2} \arrow[u, induced, "\sqsubseteq"' {sloped}, dashed] & \upsilon_2 \arrow[u, "\sqsubseteq"' {sloped}] \arrow[l, "\sqsupseteq"']
+\end{tikzcd}
+\caption{Theorem~\ref{thm:join-syn}.}
+\label{fig:join-validity}
+\end{figure}
+
+%%% Local Variables:
+%%% mode: LaTeX
+%%% TeX-master: "PolymorphicTypeSlicing"
+%%% End:

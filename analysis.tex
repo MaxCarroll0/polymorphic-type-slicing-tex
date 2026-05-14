@@ -1,0 +1,79 @@
+\section{Analysis Slices}
+\label{sec:analysis}
+
+\sectionlegend
+
+\providecommand{\anaslice}[2]{\mathit{AnaSlice}\;#1 \mathbin{\blacktriangleleft} #2}
+\providecommand{\minanaslice}[2]{\mathit{MinAnaSlice}\;#1 \mathbin{\blacktriangleleft} #2}
+\providecommand{\anaposslice}[2]{\mathit{AnaPosSlice}\;#1 \mathbin{\blacktriangleleft} #2}
+\providecommand{\minanaposslice}[2]{\mathit{MinAnaPosSlice}\;#1 \mathbin{\blacktriangleleft} #2}
+
+\noindent Analysis slices are the construction for sub-terms that are \textit{analysed} against an expected type rather than synthesising one. The principal difference from synthesis slices is the object being sliced: where a synthesis slice sliced a derivation $D : \synthesis{e}{\tau}$, an analysis slice slices a \textit{context classification} $\ctxclass{\C}{d}{\Delta';\,\Gamma'}{m}$ (Appendix~\ref{app:ctx-classification}) around the selected term. The expression slice $\varsigma$ is replaced by a context slice $\kappa \in \lfloor\C\rfloor$; everything else (minimality, existence, monotonicity) proceeds analogously to Section~\ref{sec:synthesis}, with the same non-exactness phenomena recurring for the outer-type witness.
+
+\subsection{\yo Analysis Slices}
+\label{sec:ana-slice-def}
+\mechfile{Slicing/Analysis/\\Analysis}
+
+Analysis slices concern the classifications with focus mode $m = {\color{BlueViolet}\Leftarrow}\tau$. A query $\upsilon \in \lfloor\tau\rfloor$ specifies the part of $\tau$ that we wish to explain. The outer derivation mode $d$ splits the construction in two; the second is a strengthening of the first, needed because some classification rules cross from synthesis-position outer to analysis-position inner (notably $s\circ_2$, the application focused on its argument).
+
+\begin{definition}[\yo Analysis slice]
+\label{def:ana-slice}
+An \textit{analysis slice} of $\mathit{Cls} : \ctxclass{\C}{{\color{BrickRed}\Uparrow}\,\tau_p}{\Delta';\,\Gamma'}{{\color{BlueViolet}\Leftarrow}\,\tau}$ on $\upsilon \in \lfloor\tau\rfloor$, written $\anaslice{\mathit{Cls}}{\upsilon}$, is a four-tuple
+\[ (\kappa,\,\gamma) \mathbin{{\color{BlueViolet}\Downarrow}} \psi \mathbin{\sqsupseteq} \upsilon \mathbin{\in} \mathit{cls}' \]
+with $(\kappa, \gamma) \in \lfloor\C, \Gamma\rfloor$, an outer-type witness $\psi \in \lfloor\tau_p\rfloor$, and $\mathit{cls}' : \ctxclass[\Delta;\,\gamma]{\kappa}{{\color{BrickRed}\Uparrow}\,\psi}{\Delta'';\,\Gamma''}{{\color{BlueViolet}\Leftarrow}\,\upsilon}$.
+\end{definition}
+
+\begin{definition}[\yo Analysis position slice]
+\label{def:ana-pos-slice}
+An \textit{analysis position slice} of $\mathit{Cls} : \ctxclass{\C}{{\color{BlueViolet}\Downarrow}\,\tau_p}{\Delta';\,\Gamma'}{{\color{BlueViolet}\Leftarrow}\,\tau}$ on $\upsilon \in \lfloor\tau\rfloor$, written $\anaposslice{\mathit{Cls}}{\upsilon}$, is a four-tuple
+\[ (\kappa,\,\gamma) \mathbin{{\color{BlueViolet}\Downarrow}} \upsilon \mathbin{\Downarrow} \upsilon_{\mathrm{outer}} \mathbin{\in} \mathit{cls}' \]
+with $(\kappa, \gamma) \in \lfloor\C, \Gamma\rfloor$, an outer-type witness $\upsilon_{\mathrm{outer}} \in \lfloor\tau_p\rfloor$, and $\mathit{cls}' : \ctxclass[\Delta;\,\gamma]{\kappa}{{\color{BlueViolet}\Downarrow}\,\upsilon_{\mathrm{outer}}}{\Delta'';\,\Gamma''}{{\color{BlueViolet}\Leftarrow}\,\upsilon}$.
+\end{definition}
+
+The two notions are mutually recursive: $s\circ_2$ embeds an analysis-position sub-classification inside a synthesis-position outer, while $aSub$ and $adef_1$ embed a synthesis-position sub-classification inside an analysis-position outer. The outer-type witnesses $\psi$ and $\upsilon_{\mathrm{outer}}$ play the role of $\phi$ in a synthesis slice, and exhibit the same non-existence and join-non-exactness phenomena (Counterexamples~\ref{lem:exact-not-exist}, \ref{lem:exact-not-closed}, \ref{lem:join-not-tight}); the weaker $\sqsupseteq$ validity condition is adopted in both definitions for the same reasons.
+
+\begin{figure}[t]
+\centering
+\begin{tikzcd}[column sep=large, row sep=large]
+& (\kappa,\gamma) \arrow[r, "\sqsubseteq" {sloped}] \arrow[d, "{\color{BlueViolet}\Downarrow}"'] & (\C,\Gamma) \arrow[d, "{\color{BlueViolet}\Downarrow}"] \\
+\upsilon \arrow[r, "\sqsubseteq" {sloped}] & \psi \arrow[r, induced, "\sqsubseteq" {sloped}, "\text{(by graduality)}"', dashed] & \tau_p
+\end{tikzcd}
+\caption{Diagram of an analysis slice; $\upsilon \sqsubseteq \psi$ is the validity witness on the outer-type witness side ($\upsilon_{\mathrm{outer}}$ for an analysis position slice).}
+\label{fig:ana-fundamental-triangle}
+\end{figure}
+
+\subsection{\yo Minimality}
+\label{sec:ana-minimality}
+\mechfile{Slicing/Analysis/\\Analysis}
+
+$\minanaslice{\mathit{Cls}}{\upsilon}$ and $\minanaposslice{\mathit{Cls}}{\upsilon}$ are defined analogously to Definition~\ref{def:isminimal}, minimising over the context slice $(\kappa, \gamma)$. The outer-type witness is determined up to the slice lattice by the lifted classification and is not minimised over independently.
+
+Minimal analysis slices need not be unique, but this non-determinism is wholly inherited from synthesis: the expected types against which sub-terms are analysed are themselves derived from types synthesised elsewhere in the program, and those synthesis slices can have multiple incomparable minima (Counterexample~\ref{lem:min-not-unique}). Analysis slicing introduces no new sources of non-determinism beyond this.
+
+\subsection{\po Existence}
+\label{sec:ana-min-exists}
+\mechfile{Slicing/Analysis/\\Analysis}
+
+\begin{majortheorembox}
+\mechbox{minExists/\\minExistsPos}%
+\begin{theorem}[\po Existence of minimal analysis slices]\label{thm:ana-min-exists}
+For every $s : \anaslice{\mathit{Cls}}{\upsilon}$, there exists $m : \minanaslice{\mathit{Cls}}{\upsilon}$ with $m \sqsubseteq s$; and analogously for $\mathit{AnaPosSlice}$.
+\end{theorem}
+\end{majortheorembox}
+
+\begin{proof}
+The slice lattice $\lfloor\C, \Gamma\rfloor$ is finite, so $\{(\kappa', \gamma') \sqsubseteq (\kappa, \gamma) \mid (\kappa', \gamma')\,\text{is a slice}\}$ is finite. Enumerate it and descend; the chain terminates at a minimal element.
+\end{proof}
+
+\subsection{\po Monotonicity}
+\label{sec:ana-monotonicity}
+\mechfile{Slicing/Analysis/\\Analysis}
+
+\begin{theorem}[\po Monotonicity of minimal analysis slices]\mechbox{mono/monoPos}\label{thm:ana-mono}
+If $\upsilon_1 \sqsubseteq \upsilon_2$ in $\lfloor\tau\rfloor$ and $m_2 : \minanaslice{\mathit{Cls}}{\upsilon_2}$, then there exists $m_1 : \minanaslice{\mathit{Cls}}{\upsilon_1}$ with $m_1.\kappa \sqsubseteq m_2.\kappa$ and $m_1.\gamma \sqsubseteq m_2.\gamma$; analogously for $\mathit{AnaPosSlice}$.
+\end{theorem}
+
+%%% Local Variables:
+%%% mode: LaTeX
+%%% TeX-master: "PolymorphicTypeSlicing"
+%%% End:

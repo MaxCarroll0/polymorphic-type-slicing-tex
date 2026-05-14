@@ -1,20 +1,36 @@
 \documentclass[12pt]{article}
 
+%TC:ignore
 \input{preamble.tex}
+%TC:endignore
 
 \begin{document}
 
+%TC:ignore
 \input{cover-page.tex}
 \input{abstract.tex}
+%TC:endignore
+
 \input{intro.tex}
-\input{UI.tex}
-\input{statics-background.tex}
-\input{statics-formalism.tex}
-\input{comparisons.tex}
-\input{decomposability.tex}
+\input{ui.tex}
+\input{background.tex}
+\input{core-calculus.tex}
+\input{synthesis.tex}
+\input{analysis.tex}
 \input{marking.tex}
-\input{future-work-conclusions.tex}
-  
+\input{algorithms.tex}
+\input{complexity.tex}
+\input{comparisons.tex}
+\input{conclusions.tex}
+
+%TC:ignore
+\printbibliography
+
+\appendix
+\input{appendix-context-classification.tex}
+\input{appendix-bounded-syn-slices.tex}
+%TC:endignore
+
 \end{document}
 
 %%% Local Variables:

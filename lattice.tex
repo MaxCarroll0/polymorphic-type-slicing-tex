@@ -1,0 +1,192 @@
+\section{Previous Theory \& Lattice Foundations}
+\label{sec:lattice}
+
+\noindent\textit{Mechanisation Status:} \yo fully mechanised, \no not mechanised, \po mechanised with postulates.
+
+\bigskip
+
+\noindent The type slicing theory rests on four families of objects -- types, expressions, contexts, and typing assumptions -- each carrying a precision partial order and admitting lattice operations. In Section~\ref{sec:lattice-background} I introduced the abstract notions of lattice, Boolean lattice, and the Kleene fixed point theorem. This section identifies the \textit{specific} lattice structures that arise in the core calculus, characterises their strength, and introduces the central construction: the \textit{slice category} of a fixed term.
+
+\subsection{Term Slices}
+\label{sec:term-slices}
+\mechfile{Core/Typ/Precision,\\Core/Exp/Precision}
+
+A \textit{type slice} $\upsilon$ is a type with some sub-terms replaced by the gap $\gap$:
+\[\upsilon ::= \gap \mid * \mid \upsilon \Rightarrow \upsilon \mid \upsilon \times \upsilon \mid \upsilon + \upsilon \mid \forall\alpha.\;\upsilon \mid \alpha\]
+An \textit{expression slice} $\varsigma$ is similarly a term with gaps:
+\[\varsigma ::= \gap \mid * \mid x \mid \lambda x \mathbin{:} \upsilon.\; \varsigma \mid \lambda x.\; \varsigma \mid \varsigma(\varsigma) \mid (\varsigma,\; \varsigma) \mid \pi_1\; \varsigma \mid \pi_2\; \varsigma \mid \iota_1\; \varsigma \mid \iota_2\; \varsigma \mid \mathbf{case}\;\varsigma\;\mathbf{of}\;x.\;\varsigma \mid y.\;\varsigma \mid \Lambda\alpha.\;\varsigma \mid \varsigma\langle\upsilon\rangle \mid \mathbf{let}\;x = \varsigma\;\mathbf{in}\;\varsigma\]
+The \textit{precision} relation $\upsilon \sqsubseteq \tau$ (respectively $\varsigma \sqsubseteq e$) is defined structurally: the gap $\gap$ is below everything, and compound terms are compared componentwise (as in Figures~\ref{fig:precision} and~\ref{fig:term-precision-lattice}).
+
+\begin{proposition}[\no Precision is Well-Founded]\label{prop:precision-wf}
+The strict precision ordering $\sqsubset$ on types and expressions is well-founded: there is no infinite strictly descending chain.
+\end{proposition}
+
+\begin{proof}
+Each type or expression is a finite tree. A strict descent in precision must change at least one position from a concrete node to $\gap$. Since there are finitely many positions, the chain is bounded. This argument is not mechanised in Agda (it would require constructing an explicit accessibility tree).
+\end{proof}
+
+\subsection{The Slice Category}
+\label{sec:slice-category}
+\mechfile{Core/Instances}
+
+For a fixed type $\tau$, the \textit{slice} of $\tau$ is the set of all type slices below it:
+\[\lfloor\tau\rfloor \;=\; \{\,\upsilon \mid \upsilon \sqsubseteq \tau\,\}\]
+In the Agda mechanisation, this is the dependent record \texttt{SliceOf}, parametric over any decidable partial order:
+\begin{center}
+\begin{tabular}{l}
+\texttt{record SliceOf (a : A) : Set where} \\
+\texttt{\quad constructor \_ isSlice \_} \\
+\texttt{\quad field} \\
+\texttt{\quad\quad $\downarrow$\;\;\; : A} \\
+\texttt{\quad\quad proof : $\downarrow$ $\sqsubseteq$ a}
+\end{tabular}
+\end{center}
+The record pairs an element with a proof that it lies below the bound $a$. The construction is parametric: $\lfloor e \rfloor$, $\lfloor \C \rfloor$, and $\lfloor \Gamma \rfloor$ are defined by instantiating \texttt{SliceOf} with the expression, context, and assumption precision orders respectively.
+
+\paragraph{Lifted operations.} The \texttt{Core.Slice} module lifts the base partial order to slices:
+\begin{itemize}
+\item \textbf{Lifted precision}: $s_1 \sqsubseteq_s s_2$ iff $s_1{\downarrow} \sqsubseteq s_2{\downarrow}$.
+\item \textbf{Top element}: $\top_s = a$ \texttt{isSlice} \texttt{refl}, the bound itself.
+\item \textbf{Maximum}: $\top_s$-max proves $s \sqsubseteq_s \top_s$ for all $s$ (directly from $s$.\texttt{proof}).
+\item \textbf{Weakening}: given $a \sqsubseteq a'$, any slice of $a$ can be weakened to a slice of $a'$ by transitivity.
+\end{itemize}
+The \texttt{LiftMeetSemilattice} module takes any base \texttt{IsMeetSemilattice} and produces a \texttt{IsBoundedMeetSemilattice} on slices, with the lifted meet $s_1 \sqcap_s s_2 = (s_1{\downarrow} \sqcap s_2{\downarrow})$ \texttt{isSlice} (proof via the lower-bound property of $\sqcap$ and the slice proof of $s_1$). Each type-specific lattice module (\texttt{Core/Typ/Lattice.agda}, etc.) then extends this with join, distributivity, and the full bounded distributive lattice structure, exporting the result as a \texttt{$\sqsubseteq_s$Lat} module.
+
+\paragraph{Categorical perspective.} The slice $\lfloor\tau\rfloor$ is a \textit{slice category} in the categorical sense: its objects are precision morphisms $\upsilon \to \tau$ (i.e.\ proofs that $\upsilon \sqsubseteq \tau$), and its morphisms are commuting triangles. Meets in $\lfloor\tau\rfloor$ correspond to pullbacks, and joins to pushouts, in this category.
+
+\paragraph{Consistency and precision.} Two properties connect precision and consistency within a slice. First, precision implies consistency: if $\upsilon \sqsubseteq \tau$ then $\upsilon \sim \tau$. Second, any two slices of the same type are consistent: if $\upsilon_1 \sqsubseteq \tau$ and $\upsilon_2 \sqsubseteq \tau$ then $\upsilon_1 \sim \upsilon_2$. Both are mechanised in \texttt{Core/Typ/Precision.agda} (\texttt{$\sqsubseteq$to$\sim$} and \texttt{$\sqsubseteq$-consistent}). The second property is critical: join requires consistency, and working within a slice guarantees it.
+
+\paragraph{Characterisation.} Each $\lfloor\tau\rfloor$ forms a \textit{finite Boolean lattice} (Section~\ref{sec:lattice-background}):
+\begin{itemize}
+\item \textbf{Bounded}: $\bot = \gap$ (the empty slice) and $\top = \tau$ (the full term).
+\item \textbf{Meet} $\sqcap$: pointwise greatest lower bound.
+\item \textbf{Join} $\sqcup$: pointwise least upper bound. Always defined within the slice, since any two slices of the same type are consistent (above).
+\item \textbf{Complement}: $\neg\upsilon$ swaps each position between $\gap$ and the corresponding sub-term of $\tau$.
+\item \textbf{Finite}: each of the $n$ positions in $\tau$ can independently be $\gap$ or concrete, giving at most $2^n$ elements.
+\item \textbf{Distributive}: $\upsilon_1 \sqcap (\upsilon_2 \sqcup \upsilon_3) = (\upsilon_1 \sqcap \upsilon_2) \sqcup (\upsilon_1 \sqcap \upsilon_3)$.
+\end{itemize}
+
+The distributivity and bounded lattice properties are fully mechanised (\yo) in \texttt{Core/Typ/Lattice.agda}. Complementation is not explicitly constructed in the mechanisation (\no) but follows from finiteness and the Boolean characterisation.
+
+\begin{remark}[Dependent structure]
+Inner structure requires outer structure: if a compound node is $\gap$, all its children must also be $\gap$. This means $\lfloor\tau\rfloor$ is a \textit{sublattice} of $\mathbb{B}^n$ (not freely $\mathbb{B}^n$). It is still finite and Boolean.
+\end{remark}
+
+Figure~\ref{fig:hasse-int-arrow-bool} shows the full Hasse diagram for $\lfloor\mathit{Int} \Rightarrow \mathit{Bool}\rfloor$.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[>=stealth, node distance=1.2cm, every node/.style={inner sep=2pt, font=\small}]
+  \node (top) {$\mathit{Int} \Rightarrow \mathit{Bool}$};
+  \node (l) [below left=1.4cm and 1.2cm of top] {$\mathit{Int} \Rightarrow \gap$};
+  \node (r) [below right=1.4cm and 1.2cm of top] {$\gap \Rightarrow \mathit{Bool}$};
+  \node (mid) [below=2.8cm of top] {$\gap \Rightarrow \gap$};
+  \node (bot) [below=1.4cm of mid] {$\gap$};
+  \draw (top) -- (l);
+  \draw (top) -- (r);
+  \draw (l) -- (mid);
+  \draw (r) -- (mid);
+  \draw (mid) -- (bot);
+\end{tikzpicture}
+\caption{Hasse diagram of $\lfloor\mathit{Int} \Rightarrow \mathit{Bool}\rfloor$.}
+\label{fig:hasse-int-arrow-bool}
+\end{figure}
+
+\subsubsection{\no Lifted Precision and Well-Foundedness}
+\label{sec:lifted-well-foundedness}
+
+Precision on $\lfloor\tau\rfloor$ is inherited from the base type: $s_1 \sqsubseteq_s s_2$ iff $s_1{\downarrow} \sqsubseteq s_2{\downarrow}$. The top element is $\top_s = \tau$ and the bottom is $\bot_s = \gap$.
+
+\begin{corollary}[\no Lifted Well-Foundedness]\label{cor:lifted-wf}
+The strict ordering on $\lfloor\tau\rfloor$ is well-founded (both downwards and upwards).
+\end{corollary}
+
+\textit{Downwards}: a descending chain in $\lfloor\tau\rfloor$ is a descending chain in the base, so Proposition~\ref{prop:precision-wf} applies. \textit{Upwards}: $\lfloor\tau\rfloor$ is finite with a top element $\tau$, so ascending chains terminate. Neither direction is mechanised in Agda.
+
+\subsection{Four Lattice Structures}
+\label{sec:four-lattices}
+\mechfile{Core/Typ/Lattice,\\Core/Exp/Lattice,\\Core/Ctx/Lattice,\\Core/Assms/Lattice}
+
+The core calculus gives rise to four families of objects under precision. Figure~\ref{fig:four-lattices} summarises their lattice strength.
+
+\begin{figure}[t]
+\centering
+\begin{tabular}{lcccc}
+\toprule
+\textbf{Object} & \textbf{Global $\bot$} & \textbf{Global $\top$} & \textbf{Global meet-semilattice} & \textbf{$\lfloor\cdot\rfloor$ lattice type} \\
+\midrule
+Types $\tau$ & $\gap$ & none & yes & finite Boolean \\
+Expressions $e$ & $\gap$ & none & yes & finite Boolean \\
+Contexts $\C$ & none & none & no & finite Boolean \\
+Assumptions $\Gamma$ & none & none & no & finite bounded distributive \\
+\bottomrule
+\end{tabular}
+\caption{The four lattice structures of the core calculus.}
+\label{fig:four-lattices}
+\end{figure}
+
+\paragraph{Types and expressions} have $\gap$ as a global bottom and admit a global meet $\sqcap$ (structurally: take the meet at each position, defaulting to $\gap$ when kinds differ). The global join $\sqcup$ is only defined for consistent types. Within each slice $\lfloor\tau\rfloor$ (or $\lfloor e \rfloor$), all elements are consistent, so the full Boolean lattice structure is available.
+
+\paragraph{Contexts} (Section~\ref{sec:one-hole-contexts}) have no global bottom: $\lambda x \mathbin{:} \tau.\; \C$ and $\C'(e)$ are incomparable because their top-level constructors differ. Within each slice $\lfloor\C\rfloor$, the bottom is $\gap(\C)$ -- the purely structural context (Section~\ref{sec:context-syntax}) -- and the full Boolean structure holds.
+
+\paragraph{Typing assumptions} are treated as \textit{partial functions} from variable names to type slices. Precision: $\gamma_1 \sqsubseteq \gamma_2$ iff $\mathrm{dom}(\gamma_1) \subseteq \mathrm{dom}(\gamma_2)$ and $\gamma_1(x) \sqsubseteq \gamma_2(x)$ for all $x \in \mathrm{dom}(\gamma_1)$. Making a variable \textit{unused} (dropping it from the domain) decreases precision. Assumptions of different full domains are incomparable, so there is no global bottom or meet-semilattice.
+
+Within $\lfloor\Gamma\rfloor$, the bottom is the empty-domain assumption (all variables unused, written $\emptyset$) and the top is $\Gamma$ itself. The lattice operations are:
+\begin{itemize}
+\item \textbf{Meet}: $(\gamma_1 \sqcap \gamma_2)(x) = \gamma_1(x) \sqcap \gamma_2(x)$ on the intersection of domains; undefined elsewhere.
+\item \textbf{Join}: $(\gamma_1 \sqcup \gamma_2)(x) = \gamma_1(x) \sqcup \gamma_2(x)$ on the union of domains (treating missing variables as $\gap$).
+\end{itemize}
+This forms a bounded distributive lattice (\yo, \texttt{Core/Assms/Lattice.agda}). The mechanisation exports the full structure via the \texttt{$\sqsubseteq_s$Lat} module: infimum/supremum proofs, minimum ($\bot_s$) and maximum ($\top_s = \Gamma$), and the \texttt{IsDistributiveLattice} record. The assumption lattice is \textit{not} complemented in general: the complement of a variable assignment $x \mapsto \mathit{Int}$ would need to be $x \mapsto \neg\mathit{Int}$ relative to $\Gamma(x)$, but the domain constraint couples variables in a way that can prevent independent complementation.
+
+\begin{remark}[Mechanisation difference]\label{rem:assms-mechanisation}
+In the Agda mechanisation (\texttt{Core/Assms/}), assumptions are fixed-length lists indexed by de Bruijn position. An ``unused'' variable is represented by $\gap$ at that position. This is equivalent: $\mathrm{dom}(\gamma)$ corresponds to positions where $\gamma[i] \neq \gap$. The partial-function presentation is cleaner for exposition; the list representation is more convenient for Agda's dependent types.
+\end{remark}
+
+\subsection{Expression Typing Slices}
+\label{sec:expression-typing-slices}
+\mechfile{Slicing/Synthesis}
+
+An \textit{expression typing slice} $\rho = \varsigma^\gamma$ is a pair of an expression slice $\varsigma \sqsubseteq e$ and an assumption slice $\gamma \sqsubseteq \Gamma$. Precision is componentwise: $\rho_1 \sqsubseteq \rho_2$ iff $\varsigma_1 \sqsubseteq \varsigma_2$ and $\gamma_1 \sqsubseteq \gamma_2$. Within $\lfloor e^\Gamma \rfloor$, the lattice operations are componentwise:
+\[(\varsigma_1^\gamma_1) \sqcap (\varsigma_2^\gamma_2) = (\varsigma_1 \sqcap \varsigma_2)^{(\gamma_1 \sqcap \gamma_2)} \qquad (\varsigma_1^{\gamma_1}) \sqcup (\varsigma_2^{\gamma_2}) = (\varsigma_1 \sqcup \varsigma_2)^{(\gamma_1 \sqcup \gamma_2)}\]
+The bottom is $\gap^\emptyset$ (no expression, no assumptions) and the top is $e^\Gamma$.
+
+Slices are \textit{interpreted} as terms for type checking: gaps in expressions are read as the dynamic type $\gap$, and missing assumptions are read as $x : \gap$. By graduality (Theorem~\ref{thm:graduality-syn}), every expression typing slice of a well-typed program is itself well-typed.
+
+\subsection{The External Language}
+\label{sec:external-language}
+
+Each syntactic form in the core calculus (Figure~\ref{fig:syntax}) plays a distinct role in the slicing theory. The table below summarises why each form is needed and what would be lost without it.
+
+\begin{center}
+\small
+\begin{tabular}{llp{6cm}}
+\toprule
+\textbf{Form} & \textbf{Role} & \textbf{Without it} \\
+\midrule
+$\lambda x \mathbin{:} \tau.\; e$ & Synthesises; annotation is a slice target & Cannot explain function types from annotations \\
+$\lambda x.\; e$ & Analysis-only; represents inferred parameters & Cannot represent analysis-mode slices \\
+$\mathbf{let}\;x = e_1\;\mathbf{in}\;e_2$ & Body synthesises freely from $e_1$'s type & Cannot represent unconstrained bindings \\
+$(e : \tau)$ & Constrains $e$ to $\tau$; annotation is sliceable & Subsumed by $(\lambda x \mathbin{:} \tau.\;x)(e)$ \\
+$(e_1,\; e_2)$ & Independent components for compositional slicing & Cannot decompose product types \\
+$\mathbf{case}\;e\;\mathbf{of}\;x.\;e_1 \mid y.\;e_2$ & Non-deterministic split; source of NP-hardness & Cannot model branching \\
+$\Lambda\alpha.\; e$ & Introduces type variables & No polymorphic slicing \\
+$e\langle\tau\rangle$ & Instantiates $\forall$; connects polymorphism to concrete types & Cannot slice type applications \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\begin{recipe}{Setting Up Your Slice Lattice}
+\begin{enumerate}
+\item Define a gap $\gap$ constructor for each syntactic category.
+\item Define precision $\sqsubseteq$ structurally: $\gap \sqsubseteq$ everything, then componentwise.
+\item Verify: bounded lattice (meets and joins exist for all pairs under a common upper bound).
+\item Verify: Boolean (complementation exists relative to each upper bound).
+\item Verify: distributive ($\sqcap$ over $\sqcup$ and vice versa).
+\item Key: positions must be \textit{independent} (no cross-node constraints beyond the dependent-structure requirement that children require their parent).
+\end{enumerate}
+\end{recipe}
+
+%%% Local Variables:
+%%% mode: LaTeX
+%%% TeX-master: "PolymorphicTypeSlicing"
+%%% End:

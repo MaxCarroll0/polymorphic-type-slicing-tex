@@ -1,0 +1,3 @@
+# Org-mode renders LaTeX fragments through MathJax (in-buffer preview) and
+# through standard LaTeX exporters. The allowlist is the same as md.
+# This file exists so audit-org.sh has a stable path; it just sources md.

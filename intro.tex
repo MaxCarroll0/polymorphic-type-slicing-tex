@@ -1,6 +1,33 @@
-
-\section{Motivation}
+\section{Introduction}
 \label{sec:intro}
+
+A static type error is conventionally reported at a single source location, but these localisation are often imprecise in two directions. The highlighted term often includes code that does \textit{not} directly contribute to the error, and at the same time misses regions of the surrounding context that \textit{do} (for example, non-local type information sourced from bindings). As a result, existing highlighting systems show both too much and too little context to the programmer for any given error. The error itself states only that the term has a differing type that was \textit{expected}, not \textit{why} the system expected it.
+
+This dissertation develops the theory of \textit{type slicing}: a decomposable highlighting system that allows terms to be selected and the type explained in a \textit{bidirectional} locally inferred type system. A programmer selects an expression and queries a part of the type, $\upsilon$, that they wish to explain. The explanation picks out a minimal portion of the program that suffices to justify the queried type. A \textit{synthesis slice} of a selected term answers ``which parts of the term caused it to have type $\upsilon$?''; an \textit{analysis slice} of a selected term answers the complementary question, ``which parts of the surrounding program enforced that this term have type $\upsilon$?''. Slices \textit{decompose}: refining a query, say from an entire function type to just its codomain, gives a smaller highlighted region for the refined query, supporting interactive exploration complex types, where the programmer can iteratively focus into sub-parts of the type that are of interest. For example, maybe only a small region of a large type involed in a type error is erroneous. The same machinery applies even beyond errors; it is possible to query any program regions responsible for any type information of interest, even well-typed code.
+
+\subsection{Prior Work}
+\label{sec:prior-work}
+
+Type slicing was introduced in my Part~II dissertation~\cite{Carroll2024}, giving informal definitions and a preliminary implementation within the Hazel language (TODO: cite), with pen-and-paper proofs over a restricted language. Beyond this immediate lineage, type slicing shares some lattice-based foundations with Perera's program slicing~\cite{Perera2012,PereraGarg2016}, however in very different contexts (execution vs typing). Other slicing methods for type errors exist~\cite{HaackWells2003}, typically for non-locally inferred Hindley-Milner type systems, whereas type slicing is applied to bidirectional, locally inferred systems, and generalises to explaining \textit{all} types, not just errors.
+
+\subsection{Contributions}
+\label{sec:contributions}
+
+This dissertation focuses on the \textit{statics} of type slicing and its formal underpinning, deliberately setting aside the dynamic-cast side of the picture. Its main contributions over the previous work are:
+
+\begin{itemize}
+\item \textbf{Extensions to polymorphism, products, and sums:} The core calculus and the slicing theory are extended to explicit (System F style) polymorphism, product types, and sum types, which interact in non-trivial ways, primarily in the introduction of non-determinism.
+
+\item \textbf{Mechanisation:} The majority of the theory, including extensions, has been formally mechanised in the Agda proof assistant.
+
+\item \textbf{Reformulation:} In order to mechanise the theory and introduce the extensions, much of the core theory has been reformulated. In particular, a \textit{context classification judgement} (\cref{sec:context-classification-section}), and an application of \textit{co-Heyting algebras} to the problem.
+
+\item \textbf{Assumption slices:} A more in-depth and rigorous account of \textit{assumption slices}, which allow non-local type information sourced from bindings to be queried.
+
+\item \textbf{Algorithm:} An algorithm for calculating type slices is devised and proven correct.
+
+\item \textbf{Formal interaction with error marking:} Type slicing is formally applied to ill-typed programs by integration with the total type-error marking of Zhao et al.~\cite{Marking2024}, including re-proving the results of that paper for the extensions and for the context classification construct of the type-slicing calculus.
+\end{itemize}
 
 %%% Local Variables:
 %%% mode: LaTeX

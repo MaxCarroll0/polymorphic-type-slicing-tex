@@ -1,9 +1,63 @@
-
 \section{Further Work}
 \label{sec:further-work}
 
+\subsection{Extensions}
+
+\subsubsection{Unannotated Lambdas as Slices of Annotated Lambdas}
+\label{sec:fw-unannot-lambdas}
+
+A natural extension is to treat annotation-removal as a slicing step, relating $\lambda x.\,e \sqsubseteq \lambda x{:}\tau.\,e$ in the same lattice as type imprecision. This violates graduality: in a truly dynamic context it can cause type checking of slices to fail entirely --- for instance, a dynamic function having its $\gap$ annotation removed loses the binder flexibility that made the surrounding program well-typed in the first place. The correct less-precise replacement of $\lambda x{:}\tau.\,e$ in our calculus is therefore $\lambda x{:}\gap.\,e$, not $\lambda x.\,e$: the latter is a binder that infers its parameter type from the surrounding analysis context, and so lives on a different axis. There is, however, a coherent reading of annotation-removal relative to a complete derivation $D$: with $D$ known, the missing annotation is recoverable from context, and the unannotated form behaves as an inference hole rather than a permanent gap. A relativised graduality statement that quantifies over completions of the inference holes is the principled future direction.
+
+\subsubsection{Implicit Polymorphism}
+\label{sec:fw-implicit-poly}
+
+Understanding types in a non-locally inferred language is even more difficult. Type slicing works in a bidirectionally inferred system, but exploring how it might extend into a system with explicit non-local constraints would be an interesting but complex direction.
+
+\subsubsection{Dynamics and Trace Slicing}
+\label{sec:fw-dynamics-trace}
+
+Static type slicing as developed here can already explain the elaboration step of a gradually-typed language: each inserted cast carries source-level evidence on both sides (\cref{sec:cast-slicing}). For runtime behaviour the right tool is dynamic trace slicing in the style of Perera et al.~\cite{Perera2012} and Korel and Laski~\cite{KorelLaski1988}, which slices an execution witness rather than a type derivation. The open direction is a clean handoff between the two: a static slice explains why a type derivation produced a given cast, and a dynamic trace slice explains which run-time values triggered which cast transitions, with the two agreeing on the source-level fragment in scope. Combined, they would give a single user-facing artefact spanning the static-to-dynamic boundary that defines gradual typing.
+
+\subsubsection{Completeness of the Compositional Algorithm}
+\label{sec:fw-completeness}
+
+The compositional algorithm of \cref{sec:algorithms} is sound but not complete on general minimal slices: term-minimal slices rule out many minimal slices that may be more intuitive, or simply smaller in actual code size. \emph{Bounded synthesis slices} (\cref{app:bounded-syn-slices}) strengthen the product rule by threading each sibling's assumption-slice contribution as a lower bound through the other, defeating the assumption-aliasing counterexamples behind this gap. A sketch is given in the appendix; the obvious next step is to mechanise the soundness lemma, which is currently a postulate.
+
+\subsection{Applications}
+
+\subsubsection{LLM-Guided Repair}
+\label{sec:fw-llm-repair}
+
+Contemporary editor-integrated LLM workflows typically see the whole program and propose arbitrary edits, so an automatic repair for a single type error can silently rewrite unrelated code. Type slicing can be used to restrict an edit only to parts of the program that are involved in a specified part of the type, by confining the edit to a \emph{contribution slice} which is the join of all minimal slices. This could then be used to guide LLM edits based on the types of a program, which would be particularly useful when asking an LLM to fix a type error (as type slicing works on ill-typed programs).
+
+Equivalently, a position is outside the contribution slice iff every minimal slice gappifies it, in which case the slicing theorems guarantee that replacing it with $\gap$ leaves the derivation's synthesised type unchanged.
+
+Contribution slices can be calculated directly, and the calculation is much simpler than minimal-slice computation as there is no non-determinism at case expressions (the contribution slice takes both branches unconditionally).
+
+The use of holes in programs allows the LLM to benefit from the full suite of static analysis tools as with a complete program, which has been explored by Hazel's ChatLSP integration, which can go even further by allowing execution of incomplete programs. Contribution slices allow the LLM to focus even more precisely into the program.
+
+The debugging recipe of \cref{sec:per-mark-recipe} is a program-explanation interface designed for a human reader, but it is just as appropriate as a prompt format for an LLM acting as an explanation oracle. Minimal slices give a verified minimally sufficient context to reason about types with: contribution slices bound where the model is allowed to write, minimal slices bound what the model is asked to explain.
+
+\subsubsection{Maximal Well-Typed Slices}
+\label{sec:fw-maximal-typed}
+
+An ill-typed program admits a natural dual to the contribution slice: the \emph{maximal well-typed slice} --- the largest slice obtained by gapping the smallest fragments needed to make the resulting derivation type-check. Where the contribution slice quantifies over removals that \emph{preserve} typing, this query quantifies over removals that \emph{restore} it; the result is a maximal well-typed sub-derivation against which downstream tooling can continue to run. The query shape needed is not the contribution shape of \cref{sec:syn-slice-def,sec:ana-slice} --- it ranges over the marks of \cref{sec:marking} rather than over the type --- and the algorithms of \cref{sec:algorithms} would need a separate variant.
+
+\paragraph{A finer-grained alternative to error marking.} A bare error mark in the style of Zhao et al.~\cite{Marking2024} replaces the entire offending sub-term with a dynamic-typed hole, discarding locally-good type information that the sub-term still synthesises around the point of failure. The slicing-based refinement dynamicises only the minimal inconsistent fragment within the focus and keeps the rest of the synthesised type intact. This treats the error mark as a starting point for explanation rather than as a wholesale dynamicisation.
+
+\subsection{Cast Slicing and Dynamics}
+\label{sec:cast-slicing}
+
+The slicing theory developed here is static: it explains type derivations and the consequent placement of casts at the elaboration boundary, but it stops at the boundary itself. A gradually-typed language ultimately runs casts dynamically, so a complete account of \emph{why this cast is here} should follow the cast across that boundary. Cast elaboration~\cite{HazelLivePaper} inserts a cast $\langle\tau_1 \Rightarrow \tau_2\rangle$ wherever a synthesised type meets a non-equal expected type; the natural slicing extension threads source-side and target-side slices through each cast.
+
+The headline application is debugging dynamic type errors. Gradual typing's blame label~\cite{HazelLivePaper} identifies which cast failed, but the source program region implicated by blame is only the cast site. Tagging approximate type slices to casts --- computed by enumerating the minimal synthesis (and analysis) queries that each focus on exactly one leaf of the cast's source (and target) type, and joining the resulting slices --- lets blame point to a more expansive code region: every source fragment that contributed to either side of the failing cast. A prototype implementation along these lines was sketched in the prior dissertation~\cite{Carroll2024}.
+
 \section{Conclusions}
 \label{sec:conclusions}
+
+This dissertation reformulates type slicing around the query type slice $\upsilon \sqsubseteq \tau$ and replaces the checking contexts of the prior theory with a general context-classification judgement. On these two foundations it extends the slicing theory uniformly to explicit System F polymorphism, products, and sums; develops the lattice structure and metatheory (graduality, syn-unicity, plug preservation); and mechanises essentially the whole construction in Agda. Two algorithms drop out: one read directly off the constructive existence proof and correct by construction (\cref{sec:syn-exists-alg}); the other exploiting the join combinator and the decomposition theorems for efficiency on the term-minimal fragment (\cref{sec:term-min-calc}). A formal interaction with the error-marking calculus of Zhao et al.~\cite{Marking2024} (\cref{sec:marking}) shows that the marked context classification subsumes type error slicing: ``why does this expression have this type?'' generalises ``why does this program fail to type-check?''.
+
+Beyond the static theory, an interactive UI design (\cref{sec:ui}) shows how the algebraic content of the slice lattice --- decompositions, joins, and sub-queries --- can be surfaced to a user; the complexity result of \cref{sec:complexity} sharpens the boundary between the polynomial-time minimal-slice problem solved here and the NP-hard minimum-size selection that would arise from any unique-canonical-slice formulation. The contribution slice, defined as the join of all minimal slices at a derivation node, emerges as the natural object for confining edits and explanations to a source region that is provably exhaustive of its type-level provenance --- the foundation for the LLM- and elaboration-oriented applications outlined in \cref{sec:further-work}.
 
 %%% Local Variables:
 %%% mode: LaTeX

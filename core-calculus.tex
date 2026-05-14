@@ -1,0 +1,513 @@
+\section{The Core Calculus}
+\label{sec:core-calculus}
+
+\sectionlegend
+
+In this chapter I present the core calculus which Type Slicing builds upon. It is a bidirectional, gradually typed lambda calculus based on the Hazel calculus~\cite{HazelLivePaper}, extended with products, sums, and explicit System~F polymorphism. Then, upon this, I define and prove several bi-Heyting lattices under a precision relation. 
+
+\subsection{\yo Syntax \& Relations}
+\label{sec:core-syntax}
+\mechfile{Core/*/Base}
+
+\begin{figure}[t]
+\fbox{Syntax}\ \ \ Types $\tau$ and expressions $e$
+\begin{align*}
+\tau &::= \gap \mid * \mid \tau \Rightarrow \tau \mid \tau \times \tau \mid \tau + \tau \mid \forall\alpha.\;\tau \mid \alpha \\[4pt]
+e &::= \gap \mid * \mid x \mid \lambda x \mathbin{:} \tau.\; e \mid \lambda x.\; e \mid e(e) \mid (e,\; e) \mid \pi_1\; e \mid \pi_2\; e \\
+  &\quad\mid\; \iota_1\; e \mid \iota_2\; e \mid \mathbf{case}\;e\;\mathbf{of}\;x.\;e \mid y.\;e \mid \Lambda\alpha.\; e \mid e\langle\tau\rangle \mid \mathbf{let}\;x = e\;\mathbf{in}\;e
+\end{align*}
+\fbox{Derived forms}\ \ \ Definable in terms of the core syntax
+\vspace{-0.5em}
+\begin{align*}
+(e : \tau) &\triangleq (\lambda x \mathbin{:} \tau.\; x)(e) &
+\texttt{Bool} \triangleq * + * \\
+\texttt{true} &\triangleq \iota_1\; * &
+\texttt{false} \triangleq \iota_2\; * \\
+\mathbf{if}\;e\;\mathbf{then}\;e_1\;\mathbf{else}\;e_2 &\triangleq \mathbf{case}\;e\;\mathbf{of}\;x.\;e_1 \mid y.\;e_2 & (x \notin \mathrm{FV}(e_1),\; y \notin \mathrm{FV}(e_2))
+\end{align*}
+\caption{Syntax of the core calculus. $\mathrm{FV}(\cdot)$ denotes the set of free variables of an expression.}
+\label{fig:syntax}
+\end{figure}
+
+The syntax of the core calculus is given in Figure~\ref{fig:syntax}. The \textit{gap} type $\gap$ serves a dual role: in the gradual typing interpretation it is the dynamic type, and in the slicing interpretation it represents unrequired type information (to explain a query). Similarly a \gap in expressions represents omitted sub-expressions, irrelevant to the explanation resulting from a query. In type checking, omitted expressions synthesise the dynamic (omitted) type.
+
+\subsubsection{\yo Consistency}
+\mechfile{Core/Typ/\\Consistency}
+
+\begin{figure}[t]
+\fbox{$\tau_1 \sim \tau_2$}\ \ \ $\tau_1$ is consistent with $\tau_2$
+\[\inference[$\sim\gap_1$]{}{\tau \sim \gap} \qquad
+  \inference[$\sim\gap_2$]{}{\gap \sim \tau} \qquad
+  \inference[$\sim{*}$]{}{* \sim *} \qquad
+  \inference[$\sim{\Rightarrow}$]{\tau_1 \sim \tau_1' & \tau_2 \sim \tau_2'}{\tau_1 \Rightarrow \tau_2 \sim \tau_1' \Rightarrow \tau_2'}\]
+\[\inference[$\sim{\times}$]{\tau_1 \sim \tau_1' & \tau_2 \sim \tau_2'}{\tau_1 \times \tau_2 \sim \tau_1' \times \tau_2'} \qquad
+  \inference[$\sim{+}$]{\tau_1 \sim \tau_1' & \tau_2 \sim \tau_2'}{\tau_1 + \tau_2 \sim \tau_1' + \tau_2'} \qquad
+  \inference[$\sim{\forall}$]{\tau \sim \tau'}{\forall\alpha.\;\tau \sim \forall\alpha.\;\tau'}\]
+\caption{Type consistency.}
+\label{fig:consistency}
+\end{figure}
+
+Type consistency (Figure~\ref{fig:consistency}) is exactly as presented in standard gradual type systems (\cref{sec:gradual-types}). That is, a weakening of equality, where every type is consistent with $\gap$, and compound types are consistent when their components are. Consistency is reflexive and symmetric but \textit{not} transitive.
+
+\subsubsection{\yo Precision}
+\mechfile{Core/*/\\Precision}
+
+\begin{figure}[t]
+\fbox{$\tau \sqsubseteq \tau'$}\ \ \ $\tau$ is less precise than $\tau'$
+\[\inference[$\sqsubseteq\gap$]{}{\gap \sqsubseteq \tau} \qquad
+  \inference[$\sqsubseteq{*}$]{}{* \sqsubseteq *} \qquad
+  \inference[$\sqsubseteq{\alpha}$]{}{\alpha \sqsubseteq \alpha} \qquad
+  \inference[$\sqsubseteq{\Rightarrow}$]{\tau_1 \sqsubseteq \tau_1' & \tau_2 \sqsubseteq \tau_2'}{\tau_1 \Rightarrow \tau_2 \sqsubseteq \tau_1' \Rightarrow \tau_2'}\]
+\[\inference[$\sqsubseteq{\times}$]{\tau_1 \sqsubseteq \tau_1' & \tau_2 \sqsubseteq \tau_2'}{\tau_1 \times \tau_2 \sqsubseteq \tau_1' \times \tau_2'} \qquad
+  \inference[$\sqsubseteq{+}$]{\tau_1 \sqsubseteq \tau_1' & \tau_2 \sqsubseteq \tau_2'}{\tau_1 + \tau_2 \sqsubseteq \tau_1' + \tau_2'} \qquad
+  \inference[$\sqsubseteq{\forall}$]{\tau \sqsubseteq \tau'}{\forall\alpha.\;\tau \sqsubseteq \forall\alpha.\;\tau'}\]
+\caption{Type precision.}
+\label{fig:precision}
+\end{figure}
+
+Precision (Figure~\ref{fig:precision}) is a partial order that organises terms by \textit{information content}: for types, $\tau' \sqsubseteq \tau$ means $\tau$ has at least as much type information as $\tau'$. Here, $\gap$ is the global minimum. Expression precision is defined analogously. Figure~\ref{fig:term-precision-lattice} illustrates this with a small example.
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[node distance=1.6cm, >=stealth, every node/.style={inner sep=2pt},
+                    precarrow/.style={->, latticecolor!75, line width=0.5pt}]
+  \node (top) {$\lambda x \mathbin{:} *.\; x$};
+  \node (l)   [below left=1.4cm and 0.6cm of top] {$\lambda x \mathbin{:} *.\; \gap$};
+  \node (r)   [below right=1.4cm and 0.6cm of top] {$\lambda x \mathbin{:} \gap.\; x$};
+  \node (mid) [below=2.8cm of top] {$\lambda x \mathbin{:} \gap.\; \gap$};
+  \node (bot) [below=1.4cm of mid] {$\gap$};
+  \draw[precarrow] (l)   -- node[auto,sloped,font=\scriptsize] {$\sqsubseteq$} (top);
+  \draw[precarrow] (r)   -- node[auto,sloped,font=\scriptsize] {$\sqsupseteq$} (top);
+  \draw[precarrow] (mid) -- node[auto,sloped,font=\scriptsize] {$\sqsupseteq$} (l);
+  \draw[precarrow] (mid) -- node[auto,sloped,font=\scriptsize] {$\sqsubseteq$} (r);
+  \draw[precarrow] (bot) -- node[auto,sloped,font=\scriptsize] {$\sqsubseteq$} (mid);
+\end{tikzpicture}
+\caption{Hasse diagram of slices less precise than $\lambda x{:}*.\; x$, with each edge directed from a less-precise slice up to a more-precise slice.}
+\label{fig:term-precision-lattice}
+\end{figure}
+
+\paragraph{Precision on assumptions.}\mechfile{Core/Assms/} In this calculus, I represent typing assumptions as \textit{finite} partial functions from variable names to types, with domain $\mathrm{dom}(\Gamma)$. Precision is defined by domain inclusion and pointwise precision on types in the (smaller) domain:
+\[\gamma_1 \sqsubseteq \gamma_2 \iff \mathrm{dom}(\gamma_1) \subseteq \mathrm{dom}(\gamma_2) \text{ and } \gamma_1(x) \sqsubseteq \gamma_2(x) \text{ for all } x \in \mathrm{dom}(\gamma_1)\]
+That is, a less precise type assumptions set either assumes fewer variables' types, or assumes less precise types on the present variables.
+
+\begin{remark}[Mechanisation of assumptions]\label{rem:assms-mechanisation}
+In the Agda mechanisation, assumptions are fixed-length lists indexed by de Bruijn position. An unused variable at position $i$ is represented by $\gap$ at that position. This is less general as we lose the ability to distinguish an `unused' variable from a `dynamic-typed' variable, but this distinction is never required. The partial-function presentation is more intuitive exposition.
+\end{remark}
+
+\begin{proposition}[\no Downward Well-Foundedness of Precision]\label{prop:precision-wf}
+The strict precision ordering $\sqsubset$ is downward well-founded on types, expressions, and assumptions. Each family has a bottom element under precision:
+\begin{itemize}
+\item Types and expressions: $\bot = \gap$.
+\item Assumptions: $\bot = \emptyset$.
+\end{itemize}
+\end{proposition}
+
+\begin{proof}
+Each object is a finite tree over a finite alphabet of constructors. A strict descent in precision must replace at least one non-$\gap$ position with $\gap$, as illustrated in Figure~\ref{fig:wf-tree}. Since there are finitely many positions, any descending chain has length bounded by the number of positions in the original term. And for assumptions, the finiteness of $\mathrm{dom}(\Gamma)$ bounds the number of variables available.
+\end{proof}
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[>=stealth, level distance=1cm, sibling distance=1.8cm,
+    every node/.style={inner sep=2pt, font=\small},
+    concrete/.style={draw, rounded corners=2pt, fill=black!8},
+    gapped/.style={draw, rounded corners=2pt, fill=teal!15}]
+  \node[concrete] (r1) {$\Rightarrow$}
+    child {node[concrete] (l1) {$\mathit{Bool}$}}
+    child {node[concrete] (r1r) {$\mathit{Bool}$}};
+  \node[above=0.3cm of r1, font=\footnotesize] {$\mathit{Bool} \Rightarrow \mathit{Bool}$};
+
+  \node[right=1.2cm of r1] (a1) {};
+  \draw[->, thick] ([xshift=0.6cm]r1.east) -- node[above, font=\scriptsize] {$\sqsupset$} ++(1cm,0);
+
+  \begin{scope}[xshift=4.5cm]
+  \node[concrete] (r2) {$\Rightarrow$}
+    child {node[gapped] (l2) {$\gap$}}
+    child {node[concrete] (r2r) {$\mathit{Bool}$}};
+  \node[above=0.3cm of r2, font=\footnotesize] {$\gap \Rightarrow \mathit{Bool}$};
+  \end{scope}
+
+  \draw[->, thick] ([xshift=0.6cm]r2.east) -- node[above, font=\scriptsize] {$\sqsupset$} ++(1cm,0);
+
+  \begin{scope}[xshift=9cm]
+  \node[concrete] (r3) {$\Rightarrow$}
+    child {node[gapped] (l3) {$\gap$}}
+    child {node[gapped] (r3r) {$\gap$}};
+  \node[above=0.3cm of r3, font=\footnotesize] {$\gap \Rightarrow \gap$};
+  \end{scope}
+
+  \draw[->, thick] ([xshift=0.6cm]r3.east) -- node[above, font=\scriptsize] {$\sqsupset$} ++(1cm,0);
+
+  \begin{scope}[xshift=12.8cm]
+  \node[gapped] (bot) {$\gap$};
+  \node[above=0.3cm of bot, font=\footnotesize] {$\gap$};
+  \end{scope}
+\end{tikzpicture}
+\caption{A maximal descending chain in $\lfloor\mathit{Bool} \Rightarrow \mathit{Bool}\rfloor$.}
+\label{fig:wf-tree}
+\end{figure}
+
+\subsection{\yo Lattice Properties}
+\label{sec:core-lattice}
+\mechfile{Core/*/\\Lattice}
+
+\subsubsection{\yo Meets and Joins}
+\label{sec:core-meets-joins}
+
+The \textit{meet} $\tau_1 \sqcap \tau_2$ is the greatest lower bound (GLB) of two types under precision. It is defined inductively: types of the same `kind'\footnote{Top level type constructor} take meets of their components, and $\gap$ is an \textit{annihilator} ($\gap \sqcap \tau = \gap$). The meet is \textit{always} defined: when the outermost kinds differ, $\tau_1 \sqcap \tau_2 = \gap$ is a valid (and greatest) lower bound. Since all all pairs have a meet, we have that types form a \textit{meet-semilattice} with lower bound \gap (Section~\ref{sec:lattice-background}). Expression meet is defined analogously. Assumption meets are defined pointwise and by intersecting the domains.
+
+The \textit{join} $\tau_1 \sqcup \tau_2$ is the least upper bound (LUB). It is similarly defined inductively and componentwise, but with $\gap$ acting as the \textit{identity} ($\gap \sqcup \tau = \tau$, $\tau \sqcup \gap = \tau$). However, unlike meets, the join is only defined for consistent types (i.e. types of the same kind): when $\tau_1$ and $\tau_2$ have different kinds, no upper bound exists.
+
+\begin{remark}
+One might hope to quotient types by consistency and form a join-semilattice. But, this fails because consistency is \textit{not transitive}: $\mathit{Int} \sim \gap \sim \texttt{Bool}$ does not imply $\mathit{Int} \sim \texttt{Bool}$.
+\end{remark}
+
+\subsubsection{\yo The Slice Lattice}
+\label{sec:slice-lattice}
+\mechfile{Core/Instances}
+
+For a fixed type $\tau$, the \textit{slice lattice} of $\tau$ is the \textit{lower set} under precision:
+\[\lfloor\tau\rfloor \;=\; \{\,\upsilon \mid \upsilon \sqsubseteq \tau\,\}\]
+$\lfloor e \rfloor$, $\lfloor \C \rfloor$, and $\lfloor \Gamma \rfloor$ are defined analogously for expressions, contexts, and assumptions. Each slice lattice has top $\top = \tau$ and bottom $\bot = \gap$. Then precision, meets, and joins are simply lift unchanged into the slice lattice. Importantly all terms in the slice lattice are consistent, so joins are always defined:
+
+\begin{lemma}[\yo Slices are Mutually Consistent]\label{lem:slices-consistent}
+\mechfile{Core/Typ/\\Precision}
+If\/ $\upsilon_1 \sqsubseteq \tau$ and $\upsilon_2 \sqsubseteq \tau$, then $\upsilon_1 \sim \upsilon_2$.
+\end{lemma}
+
+Hence, these slice lattices are \textit{bounded lattice}. We also get that the lattice is \textit{distributive}. And, they are on finite lattices:
+
+\begin{theorem}[\no Slice Lattices are Finite]\label{thm:slice-finite}
+Each slice lattice $\lfloor\tau\rfloor$, $\lfloor e \rfloor$, $\lfloor \C \rfloor$, and $\lfloor \Gamma \rfloor$ is finite. For a term with $n$ positions, the slice lattice has at most $2^n$ elements.
+\end{theorem}
+
+Every finite distributive lattice is a bi-Heyting algebra~\cite{DaveyPriestley}, so the slice lattices are bi-Heyting: in a finite lattice the implication and subtraction operations below can be defined directly as a finite join / meet, respectively.
+
+\mechfile{Core/*/Lattice}
+\begin{majortheorembox}
+\mechbox{typ-slice-\\BiHeyting}%
+\begin{theorem}[\po Slice Lattices are Bounded Distributive Bi-Heyting Algebras]\label{thm:slice-lattices}
+Each slice lattice $\lfloor\tau\rfloor$, $\lfloor e \rfloor$, $\lfloor \C \rfloor$, and $\lfloor \Gamma \rfloor$ is a bounded distributive bi-Heyting algebra:
+\begin{itemize}
+\item \yo \textbf{Bounded}: bottom $\bot = \gap$ (or $\emptyset$ for assumptions), top $\top = \tau$ (or $e$, $\C$, $\Gamma$).
+\item \yo \textbf{Distributive}: meet distributes over join, $\upsilon_1 \sqcap (\upsilon_2 \sqcup \upsilon_3) = (\upsilon_1 \sqcap \upsilon_2) \sqcup (\upsilon_1 \sqcap \upsilon_3)$ (and dually).
+\item \textbf{Bi-Heyting}: equipped with
+\begin{itemize}
+\item \po \textbf{Implication}: $\upsilon_1 \to \upsilon_2 = \bigsqcup\{\,\upsilon \mid \upsilon \sqcap \upsilon_1 \sqsubseteq \upsilon_2\,\}$ --- the most precise slice compatible with refining $\upsilon_1$ to at most $\upsilon_2$;
+\item \po \textbf{Subtraction}: $\upsilon_1 \setminus \upsilon_2 = \bigsqcap\{\,\upsilon \mid \upsilon_1 \sqsubseteq \upsilon_2 \sqcup \upsilon\,\}$ --- the least precise slice whose join with $\upsilon_2$ recovers $\upsilon_1$.
+\end{itemize}
+\end{itemize}
+\end{theorem}
+\end{majortheorembox}
+
+\paragraph{Inductive Definition:} Of course, calculating those joins / meets directly is very inefficient. We can define both inductively on slice lattices of the sub-terms, as demonstrated by example below for the lattice $\lfloor \tau_1 \Rightarrow \tau_2 \rfloor$ (inductively on $\lfloor \tau_1 \rfloor$ and $\lfloor \tau_2 \rfloor$).
+
+\begin{itemize}
+
+\item \textit{Implication} $\cdot \heytingto \cdot$
+\begin{align*}
+\gap \heytingto \upsilon \;&=\; \top \\
+\upsilon \heytingto \gap \;&=\; \gap && \text{(when $\upsilon \sqsupset \gap$)} \\
+{*} \heytingto {*} \;&=\; {*}\\
+(\upsilon_1 \Rightarrow \upsilon_2) \heytingto (\upsilon_1' \Rightarrow \upsilon_2') \;&=\; (\upsilon_1 \heytingto \upsilon_1') \Rightarrow (\upsilon_2 \heytingto \upsilon_2')
+\end{align*}
+
+\item \textit{Subtraction} $\cdot \heytingminus \cdot$
+\begin{align*}
+\gap \heytingminus \upsilon \;&=\; \gap \\
+\upsilon \heytingminus \gap \;&=\; \upsilon \\
+{*} \heytingminus {*} \;&=\; \gap\\
+  (\upsilon_1 \Rightarrow \upsilon_2) \heytingminus (\upsilon_1' \Rightarrow \upsilon_2') \;&=\; \begin{cases} \gap & \text{if $\upsilon_1 \heytingminus \upsilon_1' = \gap$ and $\upsilon_2 \heytingminus \upsilon_2' = \gap$} \\
+    (\upsilon_1 \heytingminus \upsilon_1') \Rightarrow (\upsilon_2 \heytingminus \upsilon_2') & \text{otherwise} \end{cases}
+\end{align*}
+\end{itemize}
+
+\begin{remark}[Mechanisation of Bi-Heyting operators]\label{rem:lattice-mechanisation}
+The implication and subtraction are only fully mechanised for the type-slice lattice $\lfloor\tau\rfloor$, which is the only lattice for which they are actually \emph{used} in the forthcoming calculi.
+\end{remark}
+
+\paragraph{Notation: Slice Lattices as Highlighted Terms.} An element of a slice lattice can be notated as the original (top) term with omitted regions (replaced by a \gap) left unhighlighted and kept regions highlighted. For instance, the slice $\mathit{Int} \Rightarrow \gap$ in $\lfloor\mathit{Int} \Rightarrow \mathit{Bool}\rfloor$ can be represented as $\sli{\mathit{Int} \Rightarrow}\, \mathit{Bool}$.
+
+The lattice operations have direct visual interpretations with this notation: meet $\sqcap$ is the intersection of highlighted regions, join $\sqcup$ is the union, implication $\heytingto$ is the largest piece compatible with the target, and subtraction $\heytingminus$ is the smallest piece recovering the source. Worked on $\lfloor (* \Rightarrow *) \times * \rfloor$ --- a pair of a function and a base value:
+\begin{center}
+\begin{tabular}{r@{\;}l}
+$\sli{(* \Rightarrow *) \times}\, * \;\;\sqcap\;\; (* \Rightarrow *) \sli{\times *}$ & $=\;\; (* \Rightarrow *) \sli{\times}\, *$\\
+$\sli{(* \Rightarrow *) \times}\, * \;\;\sqcup\;\; (* \Rightarrow *) \sli{\times *}$ & $=\;\; \sli{(* \Rightarrow *) \times *}$\\
+$\sli{(* \Rightarrow *) \times}\, * \;\;\heytingto\;\; \sli{(* \Rightarrow}\, *\sli{) \times *}$ & $=\;\; \sli{(* \Rightarrow}\, *\sli{) \times *}$\\
+$\sli{(* \Rightarrow *) \times} * \;\;\heytingminus\;\; \sli{(* \Rightarrow}\, *\sli{) \times *}$ & $=\;\; (\, *\, \sli{\Rightarrow *) \times}\, *$\\
+\end{tabular}
+\end{center}
+
+\paragraph{No Boolean Lattice.} The pseudo-complement $\neg\upsilon = \upsilon \heytingto \gap$ and the supplement ${\sim}\upsilon = \top \heytingminus \upsilon$ do \emph{not} coincide on slice lattices, so they are not Boolean algebras. Take $\upsilon = \sli{* \Rightarrow}\, *$ in $\lfloor * \Rightarrow * \rfloor$:
+\begin{align*}
+\neg\upsilon \;&=\; \sli{* \Rightarrow}\, * \;\heytingto\; * \Rightarrow * \;=\; * \Rightarrow *, \\
+{\sim}\upsilon \;&=\; \sli{* \Rightarrow *} \;\heytingminus\; \sli{* \Rightarrow}\, * \;=\; *\, \sli{\Rightarrow *}.
+\end{align*}
+The two disagree ($* \Rightarrow * \neq *\,\sli{\Rightarrow *}$). Consequentially, the Boolean complementation laws fail on either side: the Law of the Excluded Middle fails for pseudo-negation, and the Principle of Contradiction fails for the supplement:
+\[\upsilon \;\sqcup\; \neg\upsilon \;=\; \sli{* \Rightarrow}\, * \;\sqcup\; * \Rightarrow * \;=\; \sli{* \Rightarrow}\, * \;\neq\; \sli{* \Rightarrow *}\]\[
+  \upsilon \;\sqcap\; {\sim}\upsilon \;=\; \sli{* \Rightarrow}\, * \;\sqcap\; *\, \sli{\Rightarrow *} \;=\; *\, \sli{\Rightarrow}\, * \;\neq\; * \Rightarrow *.\]
+
+\subsubsection{\no Well-Foundedness of Slice Lattices}
+\label{sec:slice-wf}
+
+\begin{proposition}[\no Upward Well-Foundedness of Slice Lattices]\label{prop:slice-wf-up}
+For each of the four families, the reversed strict precision ordering $\sqsupseteq$ on $\lfloor\cdot\rfloor$ is well-founded.
+\end{proposition}
+
+\begin{proof}
+Each slice lattice is finite (Theorem~\ref{thm:slice-finite}). A finite poset with a top element admits no infinite ascending chains.
+\end{proof}
+
+Combined with downwards well-foundedness (Proposition~\ref{prop:precision-wf}), this gives well-foundedness in both directions within each slice.
+
+\subsection{\yo Typing Rules}
+\label{sec:core-typing}
+\mechfile{Semantics/Statics/\\Typing}
+
+\begin{figure}[p]
+\small
+\fbox{$\synthesis{e}{\tau}$}\ \ \ $e$ synthesises type $\tau$ under type variable context $\Delta$ and typing assumptions $\Gamma$
+\[\inference[\synr{$\gap$}]{}{\synthesis{\gap}{\gap}} \qquad
+  \inference[\synr{*}]{}{\synthesis{*}{*}}\]
+\[\inference[\synr{Var}]{x : \tau \in \Gamma}{\synthesis{x}{\tau}}\]
+\[\inference[\synr{$\lambda$Ann}]{\wf{\tau_1} & \synthesis[\Delta;\,\Gamma, x \mathbin{:} \tau_1]{e}{\tau_2}}{\synthesis{\lambda x \mathbin{:} \tau_1.\; e}{\tau_1 \Rightarrow \tau_2}} \qquad
+  \inference[\synr{let}]{\synthesis{e_1}{\tau_1} & \synthesis[\Delta;\,\Gamma, x \mathbin{:} \tau_1]{e_2}{\tau_2}}{\synthesis{\mathbf{let}\;x = e_1\;\mathbf{in}\;e_2}{\tau_2}}\]
+\[\inference[\synr{$\Lambda$}]{\synthesis[\Delta, \alpha;\,\Gamma]{e}{\tau}}{\synthesis{\Lambda\alpha.\; e}{\forall\alpha.\;\tau}} \qquad
+  \inference[\synr{TApp}]{\wf{\sigma} & \synthesis{e}{\tau} & \tau \sqcup \forall\alpha.\;\gap \equiv \forall\alpha.\;\tau'}{\synthesis{e\langle\sigma\rangle}{[\alpha \mapsto \sigma]\,\tau'}}\]
+\[\inference[\synr{App}]{\synthesis{e_1}{\tau} & \tau \sqcup (\gap \Rightarrow \gap) \equiv \tau_1 \Rightarrow \tau_2 & \analysis{e_2}{\tau_1}}{\synthesis{e_1(e_2)}{\tau_2}}\]
+\[\inference[\synr{\&}]{\synthesis{e_1}{\tau_1} & \synthesis{e_2}{\tau_2}}{\synthesis{(e_1,\; e_2)}{\tau_1 \times \tau_2}}\]
+\[\inference[\synr{$\pi_1$}]{\synthesis{e}{\tau} & \tau \sqcup (\gap \times \gap) \equiv \tau_1 \times \tau_2}{\synthesis{\pi_1\; e}{\tau_1}} \qquad
+  \inference[\synr{$\pi_2$}]{\synthesis{e}{\tau} & \tau \sqcup (\gap \times \gap) \equiv \tau_1 \times \tau_2}{\synthesis{\pi_2\; e}{\tau_2}}\]
+\[\inference[\synr{case}]{\synthesis{e}{\tau} & \tau \sqcup (\gap + \gap) \equiv \tau_1 + \tau_2 & \tau_1' \sim \tau_2' \\ \synthesis[\Delta;\,\Gamma, x \mathbin{:} \tau_1]{e_1}{\tau_1'} & \synthesis[\Delta;\,\Gamma, y \mathbin{:} \tau_2]{e_2}{\tau_2'}}{\synthesis{\mathbf{case}\;e\;\mathbf{of}\;x.\;e_1 \mid y.\;e_2}{\tau_1' \sqcup \tau_2'}}\]
+\caption{Synthesis rules.}
+\label{fig:synthesis-rules}
+\end{figure}
+
+\begin{figure}[p]
+\small
+\fbox{$\analysis{e}{\tau}$}\ \ \ $e$ analyses against type $\tau$ under $\Delta$ and $\Gamma$
+\[\inference[\anar{Sub}]{\synthesis{e}{\tau'} & \tau \sim \tau'}{\analysis{e}{\tau}}\]
+\[\inference[\anar{$\lambda$}]{\tau \sqcup (\gap \Rightarrow \gap) \equiv \tau_1 \Rightarrow \tau_2 & \analysis[\Delta;\,\Gamma, x \mathbin{:} \tau_1]{e}{\tau_2}}{\analysis{\lambda x.\; e}{\tau}}\]
+\[\inference[\anar{$\lambda$Ann}]{\wf{\tau_1} & \tau \sim \tau_1 \Rightarrow \gap \\ \tau \sqcup \tau_1 \Rightarrow \gap \equiv \tau_1' \Rightarrow \tau_2 & \analysis[\Delta;\,\Gamma, x \mathbin{:} \tau_1]{e}{\tau_2}}{\analysis{\lambda x \mathbin{:} \tau_1.\; e}{\tau}}\]
+\[\inference[\anar{case}]{\synthesis{e}{\tau'} & \tau' \sqcup (\gap + \gap) \equiv \tau_1 + \tau_2 \\ \analysis[\Delta;\,\Gamma, x \mathbin{:} \tau_1]{e_1}{\tau} & \analysis[\Delta;\,\Gamma, y \mathbin{:} \tau_2]{e_2}{\tau}}{\analysis{\mathbf{case}\;e\;\mathbf{of}\;x.\;e_1 \mid y.\;e_2}{\tau}}\]
+\[\inference[\anar{$\iota_1$}]{\tau \sqcup (\gap + \gap) \equiv \tau_1 + \tau_2 & \analysis{e}{\tau_1}}{\analysis{\iota_1\; e}{\tau}} \qquad
+  \inference[\anar{$\iota_2$}]{\tau \sqcup (\gap + \gap) \equiv \tau_1 + \tau_2 & \analysis{e}{\tau_2}}{\analysis{\iota_2\; e}{\tau}}\]
+\[\inference[\anar{\&}]{\tau \sqcup (\gap \times \gap) \equiv \tau_1 \times \tau_2 & \analysis{e_1}{\tau_1} & \analysis{e_2}{\tau_2}}{\analysis{(e_1,\; e_2)}{\tau}}\]
+\[\inference[\anar{let}]{\synthesis{e_1}{\tau_1} & \analysis[\Delta;\,\Gamma, x \mathbin{:} \tau_1]{e_2}{\tau}}{\analysis{\mathbf{let}\;x = e_1\;\mathbf{in}\;e_2}{\tau}}\]
+\caption{Analysis rules. \anar{Sub} is the unique bridge from analysis to synthesis.}
+\label{fig:analysis-rules}
+\end{figure}
+
+The complete bidirectional typing rules are given in Figures~\ref{fig:synthesis-rules} and~\ref{fig:analysis-rules}, where types may contain variables which must be within a type variable context $\Delta$. That is, a type $\tau$ is \textit{well-formed} under $\Delta$, written $\wf{\tau}$, if every free type variable in $\tau$ is a member of $\Delta$.
+
+The rules are mostly standard, but I highlight notable differences in my presentation compared to the usual bidirectional systems:
+
+\begin{itemize}
+\item \textbf{Join-based matching}: Terms can synthesise $\gap$ which is not syntactically a function, but should be treated as such (it is consistent with the function type). We can extract the argument and return types with a join: $\tau \sqcup (\gap \Rightarrow \gap) \equiv \tau_1 \Rightarrow \tau_2$. Similarly for other compound types.\footnote{This is equivalent to the standard use of `matching functions' in the gradual typing literature, typically notated $\tau \blacktriangleright \tau_1 \Rightarrow \tau_2$.}
+
+\item \textbf{Case expressions} can be type-checked in synthesis mode (\synr{case}), require the branch types $\tau_1$ and $\tau_2$ to be \textit{consistent}, synthesising the \textit{join} $\tau_1 \sqcup \tau_2$.
+
+\item \textbf{Annotated vs.\ unannotated lambdas}: Annotated lambdas, $\lambda x \mathbin{:} \tau_1.\; e$, can synthesise their type using the annotation on the argument, while $\lambda x.\; e$ can only analyse as there is no way to determine the type of the argument at the definition site.
+
+\item \textbf{Let bindings vs.\ annotated lambdas}: Unannotated let bindings, $\mathbf{let}\;x = e_1\;\mathbf{in}\;e_2$, \textit{synthesise} $e_1$ and binds the resulting type for $x$, whereas an annotated lambda application $(\lambda x \mathbin{:} \tau.\; e_2)(e_1)$ \textit{analyses} $e_1$ against $\tau$. 
+
+Hence, annotated let bindings can be simulated by annotated lambdas, but unannotated let bindings cannot. An unannotated let binding can be conceptualised as a function application between an unannotated function and a argument but with type information flowing from argument into the function; therefore, a second application rule for unannotated lambdas is a more general formulation for unannotated let bindings. But this calculus make let bindings explicit for clarity.
+\end{itemize}
+
+\subsection{\yo Context Classification}
+\label{sec:context-classification-section}
+\mechfile{Core/Ctx/Base,\\Core/Ctx/Precision,\\Semantics/Statics/\\CtxTyping}
+
+Context classification is a novel construction for bidirectional type systems. It is inspired by one-hole contexts (zippers) of algebraic data types~\cite{Huet1997}, decomposing a data structure into a focused element and its surrounding context. I apply the same idea applies to \textit{typing derivations}: given a derivation of an expression $e$ and focusing on a sub-term $e'$ in $e$, the classification decomposes it into the \textit{surrounding context} (carrying all typing information \textit{outside} the focused sub-term $e'$) and the \textit{focused sub-derivation} (carrying all typing information from \textit{inside} the focused sub-term $e'$). 
+
+The classification also records the extra assumptions made available at the focus by additional bound variables introduced in the captured context, and the mode of the focus (whether or not the sub-term synthesises a type). Both of these are necessary to allow type checking of the focus directly from the context classification derivation.
+
+\begin{remark}
+    This construction replaces and generalises the notion of \textit{checking contexts} from the previous type slicing theory.
+\end{remark}
+
+\subsubsection{\yo Context Syntax}
+\label{sec:context-syntax}
+
+\begin{figure}[t]
+\fbox{Syntax}\ \ \ One-hole expression contexts $\C$
+\begin{align*}
+\C &::= \cmark \mid \lambda x \mathbin{:} \tau.\; \C \mid \lambda x.\; \C \mid \C(e) \mid e(\C) \mid \C\langle\tau\rangle \\
+  &\quad\mid\; (\C,\; e) \mid (e,\; \C) \mid \iota_1\; \C \mid \iota_2\; \C \mid \pi_1\; \C \mid \pi_2\; \C \\
+  &\quad\mid\; \mathbf{case}\;e\;\mathbf{of}\;x.\;\C \mid y.\;f \mid \mathbf{case}\;e\;\mathbf{of}\;x.\;f \mid y.\;\C \\
+  &\quad\mid\; \Lambda\alpha.\; \C \mid \mathbf{let}\;x = \C\;\mathbf{in}\;e \mid \mathbf{let}\;x = e\;\mathbf{in}\;\C
+\end{align*}
+\fbox{$\C[e]$}\ \ \ Plug expression $e$ into the hole $\cmark$
+\vspace{-0.5em}
+\begin{align*}
+\cmark[e] &= e \\
+(\lambda x \mathbin{:} \tau.\; \C)[e] &= \lambda x \mathbin{:} \tau.\; \C[e] \\
+(\C_1(e_2))[e] &= \C_1[e](e_2) \qquad\qquad \text{(similarly for all other constructors)}
+\end{align*}
+\fbox{$\gap_\C$}\ \ \ Purely structural context: replace all sub-terms with $\gap$, preserving structure
+\vspace{-0.5em}
+\begin{align*}
+\gap_\cmark &= \cmark &
+\gap_{\lambda x \mathbin{:} \tau.\; \C} &= \lambda x \mathbin{:} \gap.\; \gap_\C &
+\gap_{\C(e)} &= \gap_\C(\gap) \quad \text{etc.}
+\end{align*}
+\caption{One-hole expression contexts. $\cmark$ marks the hole; $\C[e]$ plugs it.}
+\label{fig:contexts}
+\end{figure}
+
+First, I define one-hole contexts on terms in Figure~\ref{fig:contexts}. The focus of the context is notated $\cmark$ and is restricted to a single position in an expression.
+
+\subsubsection{\yo Context Precision and Plugging Contexts}
+\label{sec:context-precision}
+Then, for any context, you can substitute a term into the focus to produce a complete term. This is notated by $\C[e]$, plugging $e$ into context $\C$.
+
+Precision on contexts, $\C' \sqsubseteq \C$, requires the two contexts to share the focus in the same structural position, with componentwise precision on sub-terms and sub-contexts. Within each slice lattice $\lfloor\C\rfloor$ (Section~\ref{sec:slice-lattice}), the bottom is the \textit{purely structural context} $\gap_\C$: all sub-terms omitted, preserving only the focus location (Figure~\ref{fig:contexts}). 
+
+Downwards well-foundedness holds within each $\lfloor\C\rfloor$ by the same argument as Proposition~\ref{prop:precision-wf}.
+
+Importantly, context plugging preserves precision:
+
+\begin{lemma}[\yo Plug Preserves Precision]\label{lem:plug-precision}
+If\/ $\C' \sqsubseteq \C$ and $e' \sqsubseteq e$, then $\C'[e]' \sqsubseteq \C[e]$. (Figure~\ref{fig:plug-precision})
+\end{lemma}
+
+This allows slicing to independently slice the \textit{external} type information from the context and the \textit{internal} type information of the focused term independently, while ensure the whole program slice (plugging the two together) remains a valid slice of the original program.
+
+\begin{figure}[t]
+\centering
+\begin{tikzcd}[column sep=large, row sep=large]
+(\C,\; e) \arrow[r, "\text{plug}"] & \C[e] \\
+{\color{assumed} (\C',\; e')} \arrow[u, assumed, "\sqsubseteq" {sloped}] \arrow[r, "\text{plug}"'] & \C'[e'] \arrow[u, dashed, induced, "\sqsubseteq" {sloped}]
+\end{tikzcd}
+\caption{Plug preserves precision (Lemma~\ref{lem:plug-precision}).}
+\label{fig:plug-precision}
+\end{figure}
+
+\subsubsection{\yo The Classification Judgement}
+\label{sec:context-classification}
+
+The context classification judgement is notated:
+\[\ctxclass{\C}{d}{\Gamma'}{m}\]
+reading as: ``under type variable context $\Delta$ and assumptions $\Gamma$, context $\C$ in a derivation of outer mode $d$ has its focus typed under $\Delta';\,\Gamma'$ in focus mode $m$''. 
+
+The \textit{outer derivation mode} $d$ records whether the whole expression $\C[e]$ is in a synthesis derivation producing type $\tau$ ($d = {\color{BrickRed}\Uparrow}\;\tau$) or an analysis derivation against $\tau$ ($d = {\color{BlueViolet}\Downarrow}\;\tau$). The \textit{focus mode} $m$ records what the focus $e$ must satisfy: either $m = {\color{BrickRed}\Rightarrow}\;\tau'$ (the focus must synthesise type $\tau'$) or $m = {\color{BlueViolet}\Leftarrow}\;\tau'$ (the focus must analyse against $\tau'$). Both the outer derivation mode and focus mode carry a type, enabling the classification to track type flow through the derivation.
+
+Further, we record the \textit{focus assumptions} $\Gamma'$ and the \textit{focus mode} $m$ as mentioned previously. Finally, several rule require \textit{extra premises} which systematically match with the premises of the typing rule that each context classification rule represents.
+
+\paragraph{Example.} Consider the derivation of $\synthesis{e_1(e_2)}{\tau_2}$ via \synr{App}, where $\synthesis{e_1}{\tau}$, $\tau \sqcup (\gap \Rightarrow \gap) \equiv \tau_1 \Rightarrow \tau_2$, and $\analysis{e_2}{\tau_1}$.
+\begin{itemize}
+\item \textbf{Function position} ($e_1$ is the focus, $\C = \cmark(e_2)$): The corresponding classification is: $\ctxclass{\cmark(e_2)}{{\color{BrickRed}\Uparrow}\;\tau_2}{\Delta;\,\Gamma}{{\color{BrickRed}\Rightarrow}\;\tau}$. The focus must synthesise type $\tau$ as per the focus mode, with the extra premises being $\tau \sqcup (\gap \Rightarrow \gap) \equiv \tau_1 \Rightarrow \tau_2$ and $\analysis{e_2}{\tau_1}$.
+\item \textbf{Argument position} ($e_2$ is the focus, $\C = e_1(\cmark)$): The corresponding classification is: $\ctxclass{e_1(\cmark)}{{\color{BrickRed}\Uparrow}\;\tau_2}{\Delta;\,\Gamma}{{\color{BlueViolet}\Leftarrow}\;\tau_1}$. The focus analyses against $\tau_1$ as per the focus mode, with the extra premises being: $\synthesis{e_1}{\tau}$ and $\tau \sqcup (\gap \Rightarrow \gap) \equiv \tau_1 \Rightarrow \tau_2$.
+\end{itemize}
+
+\begin{figure}[p]
+\small
+\fbox{$\ctxclass{\C}{d}{\Delta';\,\Gamma'}{m}$}\ \ \ Context $\C$ at outer derivation mode $d$ classifies its focus under $\Delta';\,\Gamma'$ in focus mode $m$
+
+\bigskip
+\fbox{Base cases}\ \ \ identity contexts (focus mode matches outer derivation mode):
+\[\inference[\texttt{s$\cmark$}]{}{\ctxclass{\cmark}{{\color{BrickRed}\Uparrow}\;\tau}{\Delta;\,\Gamma}{{\color{BrickRed}\Rightarrow}\;\tau}} \qquad
+  \inference[\texttt{a$\cmark$}]{}{\ctxclass{\cmark}{{\color{BlueViolet}\Downarrow}\;\tau}{\Delta;\,\Gamma}{{\color{BlueViolet}\Leftarrow}\;\tau}}\]
+
+\medskip
+\fbox{Synthesis mode: $d = {\color{BrickRed}\Uparrow}\;\tau$}\ \ \ the overall expression $\C[e]$ synthesises:
+\[\inference[\texttt{s$\lambda$:}]{\wf{\tau_1} & \ctxclass[\Delta;\,\Gamma, x \mathbin{:} \tau_1]{\C}{{\color{BrickRed}\Uparrow}\;\tau_2}{\Delta';\,\Gamma'}{m}}{\ctxclass{\lambda x \mathbin{:} \tau_1.\;\C}{{\color{BrickRed}\Uparrow}\;\tau_1 \Rightarrow \tau_2}{\Delta';\,\Gamma'}{m}}\]
+\[\inference[\texttt{s$\circ_1$}]{\ctxclass{\C}{{\color{BrickRed}\Uparrow}\;\tau}{\Delta';\,\Gamma'}{m} & \tau \sqcup (\gap \Rightarrow \gap) \equiv \tau_1 \Rightarrow \tau_2 & \analysis{e_2}{\tau_1}}{\ctxclass{\C(e_2)}{{\color{BrickRed}\Uparrow}\;\tau_2}{\Delta';\,\Gamma'}{m}}\]
+\[\inference[\texttt{s$\circ_2$}]{\synthesis{e_1}{\tau} & \tau \sqcup (\gap \Rightarrow \gap) \equiv \tau_1 \Rightarrow \tau_2 & \ctxclass{\C}{{\color{BlueViolet}\Downarrow}\;\tau_1}{\Delta';\,\Gamma'}{m}}{\ctxclass{e_1(\C)}{{\color{BrickRed}\Uparrow}\;\tau_2}{\Delta';\,\Gamma'}{m}}\]
+\[\inference[\texttt{s$\&_1$}]{\ctxclass{\C}{{\color{BrickRed}\Uparrow}\;\tau_1}{\Delta';\,\Gamma'}{m} & \synthesis{e_2}{\tau_2}}{\ctxclass{(\C,\; e_2)}{{\color{BrickRed}\Uparrow}\;\tau_1 \times \tau_2}{\Delta';\,\Gamma'}{m}}\]
+\[\inference[\texttt{s$\Lambda$}]{\ctxclass[\Delta, \alpha;\,\Gamma]{\C}{{\color{BrickRed}\Uparrow}\;\tau}{\Delta';\,\Gamma'}{m}}{\ctxclass{\Lambda\alpha.\;\C}{{\color{BrickRed}\Uparrow}\;\forall\alpha.\;\tau}{\Delta';\,\Gamma'}{m}}\]
+\[\inference[\texttt{sdef$_2$}]{\synthesis{e_1}{\tau'} & \ctxclass[\Delta;\,\Gamma, x \mathbin{:} \tau']{\C}{{\color{BrickRed}\Uparrow}\;\tau}{\Delta';\,\Gamma'}{m}}{\ctxclass{\mathbf{let}\;x = e_1\;\mathbf{in}\;\C}{{\color{BrickRed}\Uparrow}\;\tau}{\Delta';\,\Gamma'}{m}}\]
+
+\medskip
+\fbox{Analysis mode: $d = {\color{BlueViolet}\Downarrow}\;\tau$}\ \ \ the overall expression $\C[e]$ analyses:
+\[\inference[\texttt{a$\lambda\Rightarrow$}]{\tau \sqcup (\gap \Rightarrow \gap) \equiv \tau_1 \Rightarrow \tau_2 & \ctxclass[\Delta;\,\Gamma, x \mathbin{:} \tau_1]{\C}{{\color{BlueViolet}\Downarrow}\;\tau_2}{\Delta';\,\Gamma'}{m}}{\ctxclass{\lambda x.\;\C}{{\color{BlueViolet}\Downarrow}\;\tau}{\Delta';\,\Gamma'}{m}}\]
+\[\inference[\texttt{a$\iota_1$}]{\tau \sqcup (\gap + \gap) \equiv \tau_1 + \tau_2 & \ctxclass{\C}{{\color{BlueViolet}\Downarrow}\;\tau_1}{\Delta';\,\Gamma'}{m}}{\ctxclass{\iota_1\;\C}{{\color{BlueViolet}\Downarrow}\;\tau}{\Delta';\,\Gamma'}{m}}\]
+
+\medskip
+\fbox{Subsumption: ${\color{BrickRed}\Uparrow}\;\tau' \;\leadsto\; {\color{BlueViolet}\Downarrow}\;\tau$}\ \ \ the unique bridge from synthesis to analysis derivation mode:
+\[\inference[\texttt{aSub}]{\ctxclass{\C}{{\color{BrickRed}\Uparrow}\;\tau'}{\Delta';\,\Gamma'}{m} & \tau \sim \tau'}{\ctxclass{\C}{{\color{BlueViolet}\Downarrow}\;\tau}{\Delta';\,\Gamma'}{m}}\]
+\caption{Selected context classification rules.}
+\label{fig:context-classification}
+\end{figure}
+
+I give a few representative rules of context classification in Figure~\ref{fig:context-classification}. The construction of these rules is systematic, one for each typing rule and focus position. The only exception being the identity contexts $\texttt{s}\cmark$ and $\texttt{a}\cmark$ (the base cases) saying that the focus mode must match the outer derivation mode.
+
+Correctness of context classification is formalised via a \textit{totality} theorem: every well-typed expression can be decomposed into context and expression at some focus, with a context classification matching a (consistent) typing derivation of the focused term. Conversely, a \textit{soundness} theorem states that a valid classification and expression satisfying the focus typing mode can be composed into a well-typed plugged expression.
+
+\begin{majortheorembox}
+\mechbox{plug-decompose}%
+\begin{theorem}[\yo Plug Decomposition -- Totality]\label{thm:plug-decomposition}
+For any context $\C$, expression $e$, and outer derivation mode $d$:
+\begin{itemize}
+\item If\/ $\synthesis{\C[e]}{\tau}$, then there exist $\Delta'$, $\Gamma'$, and $m$ such that $\ctxclass{\C}{{\color{BrickRed}\Uparrow}\;\tau}{\Delta';\,\Gamma'}{m}$ and $e$ satisfies focus mode $m$ under $\Delta';\,\Gamma'$.
+\item If\/ $\analysis{\C[e]}{\tau}$, then there exist $\Delta'$, $\Gamma'$, and $m$ such that $\ctxclass{\C}{{\color{BlueViolet}\Downarrow}\;\tau}{\Delta';\,\Gamma'}{m}$ and $e$ satisfies focus mode $m$ under $\Delta';\,\Gamma'$.
+\end{itemize}
+Here ``$e$ satisfies focus mode $m$ under $\Delta';\,\Gamma'$'' means: if $m = {\color{BrickRed}\Rightarrow}\;\tau'$ then $\Delta';\,\Gamma' \vdash e\;{\color{BrickRed}\Uparrow}\;\tau'$; if $m = {\color{BlueViolet}\Leftarrow}\;\tau'$ then $\Delta';\,\Gamma' \vdash e\;{\color{BlueViolet}\Downarrow}\;\tau'$.
+\end{theorem}
+\end{majortheorembox}
+
+\begin{majortheorembox}
+\mechbox{plug-compose}%
+\begin{theorem}[\yo Plug Composition -- Soundness]\label{thm:plug-composition}
+For any context $\C$, expression $e$, outer derivation mode $d$, and focus mode $m$: if\/ $\ctxclass{\C}{d}{\Delta';\,\Gamma'}{m}$ and $e$ satisfies focus mode $m$ under $\Delta';\,\Gamma'$, then $\C[e]$ satisfies outer derivation mode $d$ under $\Delta;\,\Gamma$.
+\end{theorem}
+\end{majortheorembox}
+
+\subsection{\yo Metatheory: Graduality \& Unicity}
+\label{sec:core-metatheory}
+\mechfile{Semantics/\\Graduality}
+
+Finally, the static gradual guarantee (\cref{sec:gradual-types}), standard in gradual typing systems, is an essential monotonicity theorem used to ensure efficient computability of type slices.
+
+\begin{majortheorembox}
+\begin{theorem}[\yo Static Gradual Guarantee -- Synthesis]\label{thm:graduality-syn}
+If\/ $\Gamma' \sqsubseteq \Gamma$, $e' \sqsubseteq e$, and\/ $\synthesis{e}{\tau}$, then there exists $\tau'$ such that\/ $\Gamma' \vdash e'\;{\color{BrickRed}\Uparrow}\;\tau'$ and\/ $\tau' \sqsubseteq \tau$.
+\end{theorem}
+\end{majortheorembox}
+
+\begin{majortheorembox}
+\begin{theorem}[\yo Static Gradual Guarantee -- Analysis]\label{thm:graduality-ana}
+If\/ $\Gamma' \sqsubseteq \Gamma$, $e' \sqsubseteq e$, $\tau' \sqsubseteq \tau$, and\/ $\analysis{e}{\tau}$, then\/ $\Gamma' \vdash e'\;{\color{BlueViolet}\Downarrow}\;\tau'$.
+\end{theorem}
+\end{majortheorembox}
+
+\begin{theorem}[\yo Synthesis Unicity]\label{thm:unicity}
+If\/ $\synthesis{e}{\tau_1}$ and\/ $\synthesis{e}{\tau_2}$, then $\tau_1 = \tau_2$.
+\end{theorem}
+
+\begin{corollary}[\yo Synthesis Precision]\label{cor:precision}
+If\/ $\Gamma' \sqsubseteq \Gamma$, $e' \sqsubseteq e$, $\synthesis{e}{\tau}$, and\/ $\Gamma' \vdash e'\;{\color{BrickRed}\Uparrow}\;\tau'$, then $\tau' \sqsubseteq \tau$.
+\end{corollary}
+
+\paragraph{Mechanisation provenance.} The Agda mechanisation of graduality is loosely based on
+\href{https://github.com/hazelgrove/hazelnut-polymorphism-agda}{\texttt{hazelgrove/hazelnut-polymorphism-agda}}. But had to be re-proven from scratch to integrate with Type Slicing core calculus.\footnote{Which is sufficiently similar to Hazel for this provenance to be useful.}
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[>=stealth, node distance=1.2cm,
+    faded/.style={opacity=0.35}]
+  \node (G) {$\Gamma$};
+  \node (vd) [right=0.3cm of G] {$\vdash$};
+  \node (e) [right=0.3cm of vd] {$e$};
+  \node (ar) [right=0.3cm of e] {${\color{BrickRed}\Uparrow}$};
+  \node (t) [right=0.3cm of ar] {$\tau$};
+
+  \node (Gp) [below=2cm of G]  {${\color{assumed}\Gamma'}$};
+  \node[faded] (vdp) at (vd |- Gp) {$\vdash$};
+  \node (ep) at (e |- Gp) {${\color{assumed}e'}$};
+  \node[faded] (arp) at (ar |- Gp) {${\color{BrickRed}\Uparrow}$};
+  \node (tp) at (t |- Gp) {${\color{induced}\tau'}$};
+
+  \draw[->, assumed] (Gp) -- node[auto,font=\scriptsize,sloped] {$\sqsubseteqOriginal$} (G);
+  \draw[->, assumed] (ep) -- node[auto,font=\scriptsize,sloped] {$\sqsubseteqOriginal$} (e);
+
+  \draw[->, dashed, induced] (tp) -- node[auto,font=\scriptsize,sloped] {$\sqsubseteqOriginal$} (t);
+\end{tikzpicture}
+\caption{The static gradual guarantee -- Synthesis (Theorem~\ref{thm:graduality-syn}).}
+\label{fig:graduality-diagram}
+\end{figure}
+
+%%% Local Variables:
+%%% mode: LaTeX
+%%% TeX-master: "PolymorphicTypeSlicing"
+%%% End:

@@ -1,0 +1,41 @@
+\section{Further Work \& Applications}
+\label{sec:further-work}
+
+\subsection{Implicit Polymorphism}
+\label{sec:future-implicit}
+
+Globally inferred languages typically have much more confusing typing derivations and type errors than locally inferred languages. Extending the calculus to implicit polymorphism in a bidirectional setting would expand the application significantly. In particular, the ability to explain even well-typed code is particularly useful here as error marks are often localised to the wrong location, resulting the real error being in well-typed code.
+
+\subsection{Applications}
+\label{sec:applications}
+
+\subsubsection{LLM-Guided Repair}
+\label{sec:app-llm}
+
+Contemporary editor-integrated LLM workflows (ChatLSP, Copilot inline edit) view the whole program and may rewrite unrelated code when asked to fix a single type error. Hole-based static analysis tooling such as ChatLSP already uses the surrounding well-typed scaffold to constrain repairs; type slicing supplies the natural object for that constraint.
+
+The \emph{contribution slice} at a derivation node is the join of every minimal synthesis slice that could be queried at it: the union of all source positions \emph{capable} of contributing to the type. Positions outside the contribution slice can be replaced with $\gap$ without changing the synthesised type. Unlike minimum-size slicing (NP-hard, \cref{sec:complexity}), contribution slices are directly computable by a top-down traversal: there is no non-deterministic split at case expressions, since both branches are unioned unconditionally.
+
+Confining the LLM to the contribution slice gives a verified, minimally-sufficient editing context. The model can query the parts of the type it wishes to change; the corresponding slice bounds where any acceptable repair may live, making it structurally impossible to damage parts of the type that were not asked about (including head constructors). Dually, minimal slices --- one synthesis slice at the focus, one analysis slice at the surrounding context --- supply a precise prompt format for an LLM acting as an explanation oracle.
+
+\subsubsection{Cast Slicing \& Dynamics}
+\label{sec:cast-dynamics}
+
+A gradually-typed language elaborates source programs into a cast calculus and runs the resulting casts dynamically. Type slices can be attached directly to those casts. Hence, casts can then explain why they were inserted by pointing back to code; the source will be a slice of the term being cast, and the target a slice of its context. Approximate minimal slices can be tagged directly onto types allowing them to be decomposed at runtime, allowing dynamic casts to point back to code. This is particularly useful for debugging dynamic type errors, which do not typically point back to code, but do when carrying type slices. However, the strong properties of slices being slices of the original program is not maintained during dynamic execution. Tracking dynamic execution, perhaps integrating ideas from Perera (TODO: cite), would allow users to trace back casts to source code with stronger guarantees. This application is detailed thoroughly in Carroll~\cite{Carroll2024}.
+
+\subsubsection{Smaller Error Marks}
+\label{sec:app-largest-valid}
+
+An error mark in the style of Section (TODO: ref) \textcite{Marking2024} replaces entire inconsistent expressions with dynamic-typed holes, discarding any locally-good type information. For example, when the type inconsistency lies deep in the syntax tree of a type (consider both branches of an if statement being products, but with different projections). Then treating the whole expression as a hole will result in fewer cast insertions than possible making execution more dynamic than needed, resulting in dynamic errors to be caught later (or missed entirely).
+
+\section{Conclusions}
+\label{sec:conclusions}
+
+This dissertation extends typing slicing theory to explicit System~F polymorphism, products, and sums; mechanises the statics, the lattice structure, derivation and synthesis slices, the two static gradual guarantee theorems and synthesis unicity, in Agda, reformulating much of the prior theory. A more rigorous account of \emph{assumption slices} was considered and extensive exploration of provably correct algorithms, rather than previous approximations, including various optimisations.
+
+The theory is formally integrated with the error-marking calculus of \textcite{Marking2024}, formally connecting it to ill-typed programs, justifying its \textit{sound} use in debugging \textit{all} static type errors of a program. Finally, type slicing was related to other slicing methods, and further applications were proposed \cref{sec:further-work}.
+
+%%% Local Variables:
+%%% mode: LaTeX
+%%% TeX-master: "PolymorphicTypeSlicing"
+%%% End:

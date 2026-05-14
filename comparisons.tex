@@ -1,9 +1,90 @@
-\section{Relation to other Forms of Slicing}
+\section{Relation to Other Forms of Slicing}
 \label{sec:comparisons}
 
+Program slicing of various different forms, relating to dynamic execution, data dependencies, and type errors, has been studied extensively. In this chapter I compare type slicing with three other program slicing traditions: classical \emph{program slicing}~\cite{Weiser1984,TipSurvey1995}, \emph{Galois slicing}~\cite{Perera2012}, and \emph{type error slicing}~\cite{Wand1986,HaackWells2003}. Type slicing differs from all three, but has some similarities to Galois slicing.
+
+\subsection{Classical Program Slicing}
+\label{sec:cmp-program-slicing}
+
+Classical program slicing~\cite{Weiser1984,TipSurvey1995} was developed for imperative programs. The slicing criterion is a (program-point, variable) pair, and the slice is a sub-program obtained by deleting statements that preserves the runtime value of the chosen variable at the chosen point. Static and dynamic variants~\cite{KorelLaski1988} differ in whether the preservation is universally quantified over inputs or specialised to a single execution, but both share the same shape: the analysis tracks data and control dependence between statements, and the slice is a syntactic deletion that preserves a runtime observation.
+
+Type slicing is in a different idiom on every count. The object is an expression (and assumptions) lattice rather than a sequence of statements; the criterion is a query type $\upsilon \sqsubseteq \tau$ rather than a (point, variable) pair; the preserved quantity is a synthesised type, not a runtime value; and ``deletion'' is a structural $\gap$ in the precision lattice.
+
+\subsection{Galois Slicing}
+\label{sec:cmp-galois}
+
+Galois slicing~\cite{Perera2012} is a lattice-theoretic version of type slicign that has subsequently been applied and related to a wide range of calculi and user interfaces~\cite{Ricciotti2017,PereraGarg2016,PereraVis2022,AtkeyPerera2025}.
+
+Type slicing is related in the use of lattices and precision. However, Galois slices define a Galois connection, which unfortunately does not exist for type slicing.
+
+\subsubsection{Background: Galois connections and the adjoint functor theorem}
+\label{sec:cmp-galois-aft}
+
+For context, an order-theoretic Galois connection is defined as follows:
+
+\begin{definition}[Galois connection]
+Let $(P, \sqsubseteq_P)$ and $(Q, \sqsubseteq_Q)$ be posets. A pair of monotone maps $f : P \to Q$ and $g : Q \to P$ is a \emph{Galois connection}, written $f \dashv g$ with $f$ the lower adjoint and $g$ the upper adjoint, when for every $p \in P$ and $q \in Q$
+\[
+  f(p) \sqsubseteq_Q q \iff p \sqsubseteq_P g(q).
+\]
+\end{definition}
+
+\begin{proposition}[Adjoint Functor Theorem for Complete Lattices~{\cite[Prop.~7.34]{DaveyPriestley}}]
+Let $P, Q$ be complete lattices. A monotone map $g : Q \to P$ is the upper adjoint of a (necessarily unique) Galois connection if and only if $g$ preserves all meets. When $g$ preserves meets, the lower adjoint $f$ is given pointwise by
+\[
+  f(p) = \bigsqcap \{\, q \in Q \mid g(q) \sqsupseteq p \,\}.
+\]
+\end{proposition}
+
+\subsubsection{Slicing}
+\label{sec:cmp-galois-perera}
+
+Perera et al.\ work in a functional setting in which a program $e$ is evaluated under an environment $\rho$ to a value $v$, written $\rho, e \downdownarrows v$. For a fixed such terminating execution, they form the slice lattice $\lfloor \rho, e \rfloor$ of partial programs below $(\rho, e)$ and the slice lattice $\lfloor v \rfloor$ of partial values below $v$ (Perera et al.\ refer to these as prefixes, $\mathrm{Prefix}(\rho, e)$ and $\mathrm{Prefix}(v)$). Type slices have the same shape as Perera's slices: a partial program (here the slice $\rho$) paired with a partial value (here the synthesised type $\psi$), mediated by a derivation (here the typing derivation).
+
+Restricted to the slice lattice below the executed program, evaluation lifts to a function
+\[
+  \mathit{eval}_{\rho,e} : \lfloor \rho, e \rfloor \to \lfloor v \rfloor
+\]
+which is total, monotone, and crucially meet-preserving:
+\[
+  \mathit{eval}_{\rho,e}(p_1 \sqcap p_2) = \mathit{eval}_{\rho,e}(p_1) \sqcap \mathit{eval}_{\rho,e}(p_2).
+\]
+
+By the adjoint functor theorem, $\mathit{eval}_{\rho,e}$ is then the upper adjoint of a unique Galois connection, with lower adjoint
+\[
+  \mathit{uneval}_{\rho,e} : \lfloor v \rfloor \to \lfloor \rho, e \rfloor,
+  \qquad
+  \mathit{uneval}_{\rho,e}(u) = \bigsqcap \{\, p \in \lfloor \rho, e \rfloor \mid \mathit{eval}_{\rho,e}(p) \sqsupseteq u \,\}
+\]
+This $\mathit{uneval}_{\rho,e}$ is the `backward slice function': it sends a partial-value query $u$ to the meet of all slices whose evaluation suffices to produce $u$, and that meet is itself in the set, so $\mathit{uneval}_{\rho,e}(u)$ is a least slice for $u$.
+
+\subsubsection{Failure of Meet-Preservation for Type Synthesis}
+\label{sec:cmp-galois-failure}
+
+The natural type-slicing analogue of $\mathit{eval}_{\rho,e}$ is the synthesis function
+\[
+  \phi_D : \lfloor \Gamma, e \rfloor \to \lfloor \tau \rfloor
+\]
+which, given a slice $\rho \sqsubseteq (\Gamma, e)$, returns the unique synthesised type of $\rho$ under $D$. The function is well-defined by syn-unicity, monotone by syn-precision, and exists for any derivation $D$.
+
+However, the forward map $\phi_D$ is not meet-preserving in general. The case rule witnesses this: consider a derivation
+\[
+  D : \synthesis{(\mathbf{case}\;e\;\mathbf{of}\;x_1.\,e_1 \mid x_2.\,e_2)}{\tau}
+\]
+in which both branches independently synthesise the same non-gap type $\tau$. The slice $s_1$ keeping only the first branch and the slice $s_2$ keeping only the second each yield $\phi_D = \tau$, but their meet $s_1 \sqcap s_2$ omits both branches, giving $\phi_D(s_1 \sqcap s_2) = \gap \sqsubset \tau = \phi_D(s_1) \sqcap \phi_D(s_2)$.
+
+\subsection{Type Error Slicing}
+\label{sec:cmp-tes}
+
+Type error slicing, like type slicing, is a static analysis on a typing problem. Both share the broad goal of attributing type-level information back to source positions, but differ in language target, the underlying mathematical structure, and the scope.
+
+Wand~\cite{Wand1986} and Haack and Wells~\cite{HaackWells2003} work in globally inferred Hindley-Milner: the program is reduced to a system of equality constraints over type variables, and a type error slice is computed as a minimal unsatisfiable subset of the constraint set, projected back to the corresponding minimal subset of source positions. Tip and Dinesh~\cite{TipDinesh2001} present a complementary formulation in which the constraint system is replaced by an explicit dependence graph, so that the slice is computed by graph reachability.
+
+These program slices are not structure preserving programs, they are flat sets of constraints and sources, rather than actual programs. This means the results themselves cannot be type checker nor can they be executed.
+
+There is also a difference in scope. Type error slicing answers \emph{``why does this program fail to type-check?''}, whereas type slicing answers \emph{``why does this expression have this type?''}. Via marking (\cref{sec:marking})~\cite{Marking2024}, which elaborates every well-formed expression into a totally typed derivation, type slicing applies also to ill-typed programs, so ``why this type?'' subsumes ``why this fails to type-check?'' as the special case of explaining the type of a marked expression.
 
 %%% Local Variables:
 %%% mode: LaTeX
 %%% TeX-master: "PolymorphicTypeSlicing"
 %%% End:
-

@@ -1,0 +1,105 @@
+\clearpage
+\section{\no Bounded Synthesis Slices: a Calculus for \texorpdfstring{$\mathit{MinSynSlice}$}{MinSynSlice}}
+\label{app:bounded-syn-slices}
+\mechfile{Slicing/Synthesis/\\BoundedSynthesis,\\SynSliceCalc}
+
+\subsection*{Biased precision}
+
+Read $\Phi \preceq_a \gamma$ as: \emph{wherever $\Phi$ pins a concrete
+type at an assumption, $\gamma$ must record at least as much there};
+positions where $\Phi$ is $\gap$ impose no constraint, and $\gamma$ is
+free to be $\gap$ at any position regardless of $\Phi$. So $\Phi$ acts
+as a partial floor on assumption usage: a lower bound at the positions
+$\Phi$ chooses to constrain, silent elsewhere.
+
+\smallskip
+
+Formally:
+\[
+  \inference{}{[] \preceq_a []}
+  \qquad
+  \inference{\tau \neq \gap & \tau \sqsubseteq \tau' & \Gamma \preceq_a \Gamma'}
+    {(\tau,\, \Gamma) \preceq_a (\tau',\, \Gamma')}
+\]
+\[
+  \inference{\Gamma \preceq_a \Gamma'}{(\gap,\, \Gamma) \preceq_a (\tau',\, \Gamma')}
+  \qquad
+  \inference{\Gamma \preceq_a \Gamma'}{(\tau,\, \Gamma) \preceq_a (\gap,\, \Gamma')}
+\]
+The asymmetry between the two $\gap$ rules is why $\preceq_a$ is not a
+preorder: both $\gap \preceq_a \tau$ and $\tau \preceq_a \gap$ hold,
+though $\gap \neq \tau$.
+
+\subsection*{Judgements}
+
+\fbox{$D \blacktriangleleft \upsilon \;\Rightarrow\; \psi \dashv \gamma$}\ \ \ Fixed-assumption slice: for a synthesis derivation $D : \synthesis{e}{\tau}$ and query $\upsilon \sqsubseteq \tau$, realised type $\psi$ (with $\upsilon \sqsubseteq \psi \sqsubseteq \tau$) and used-assumption slice $\gamma \sqsubseteq \Gamma$.
+
+\medskip
+
+\fbox{$\Phi \vdash D \blacktriangleleft \upsilon \;\Rightarrow\; \psi \dashv \gamma$}\ \ \ Bounded slice: as above, additionally subject to the biased-precision restriction $\Phi \preceq_a \gamma$, where the input context $\Phi$ is a lower bound on the extracted assumption-slice $\gamma$.
+
+\medskip
+
+Setting $\Phi = \bot$ (all-$\gap$) recovers an unconditional
+minimality constraint, so the bounded judgement at $\bot$
+characterises $\mathit{MinSynSlice}$ directly.
+
+\subsection*{Rules}
+
+The two cases that exhibit the essential pattern are the variable rule (where $\Phi$ is consulted to inflate the recorded assumption slice) and the pair rule (where $\Phi$ is propagated across the two sub-derivations to defeat overlap). The hole and unit leaves are also shown, as they illustrate the trivial case where $\Phi$ is simply absorbed.
+
+\paragraph{Hole and unit.}
+\[
+  \inference[$\mathit{Hole}$]
+    {}
+    {\hole[] \blacktriangleleft \gap \;\Rightarrow\; \gap \dashv \bot_\Gamma}
+  \qquad
+  \inference[$\mathit{Hole}_\Phi$]
+    {}
+    {\Phi \vdash \hole[] \blacktriangleleft \gap \;\Rightarrow\; \gap \dashv \Phi}
+\]
+\[
+  \inference[$\mathit{Unit}$]
+    {}
+    {\ast \blacktriangleleft \ast \;\Rightarrow\; \ast \dashv \bot_\Gamma}
+  \qquad
+  \inference[$\mathit{Unit}_\Phi$]
+    {}
+    {\Phi \vdash \ast \blacktriangleleft \ast \;\Rightarrow\; \ast \dashv \Phi}
+\]
+
+\paragraph{Variable.}
+\[
+  \inference[$\mathit{Var}$]
+    {x{:}\tau \in \Gamma & \upsilon \neq \gap}
+    {x \blacktriangleleft \upsilon \;\Rightarrow\; \upsilon \dashv \bot_\Gamma[x \mapsto \upsilon]}
+  \qquad
+  \inference[$\mathit{Var}_\Phi$]
+    {x{:}\tau \in \Gamma & \upsilon \neq \gap}
+    {\Phi \vdash x \blacktriangleleft \upsilon \;\Rightarrow\; \Phi(x) \sqcup \upsilon \dashv \Phi[x \mapsto \Phi(x) \sqcup \upsilon]}
+\]
+
+\paragraph{Pair.}
+\[
+  \inference[$\&$]
+    {D_1 \blacktriangleleft \upsilon_1 \;\Rightarrow\; \psi_1 \dashv \gamma_1 &
+     D_2 \blacktriangleleft \upsilon_2 \;\Rightarrow\; \psi_2 \dashv \gamma_2}
+    {(D_1,\,D_2) \blacktriangleleft \upsilon_1 \times \upsilon_2 \;\Rightarrow\; \psi_1 \times \psi_2 \dashv \gamma_1 \sqcup \gamma_2}
+\]
+\[
+  \inference[$\&_\Phi$]
+    {(\Phi \sqcup \gamma_2) \vdash D_1 \blacktriangleleft \upsilon_1 \;\Rightarrow\; \psi_1 \dashv \gamma_1 &
+     (\Phi \sqcup \gamma_1) \vdash D_2 \blacktriangleleft \upsilon_2 \;\Rightarrow\; \psi_2 \dashv \gamma_2}
+    {\Phi \vdash (D_1,\,D_2) \blacktriangleleft \upsilon_1 \times \upsilon_2 \;\Rightarrow\; \psi_1 \times \psi_2 \dashv \gamma_1 \sqcup \gamma_2}
+\]
+
+\subsection*{Ruling out the product counterexample}
+
+Counterexample~\ref{lem:ce-prod-not-closed-min} of Section~\ref{sec:ce-prod-not-closed-min} showed that pairing independently-chosen minimal slices does not yield a minimal product: pairing an $\mathbf{if}\,\mathbf{true}\,\mathbf{then}\,x\,\mathbf{else}\,y$ slice with a slice of $x$ aliases the assumption $x$, after which the inner if-slice is no longer minimal in the joined context. The unbounded rules $\&$ and $\mathit{Var}$ have no way to see this aliasing: each sub-derivation is sliced in isolation, then the assumption slices are joined post-hoc.
+
+The bounded rule $\&_\Phi$ side-steps this. When slicing $D_1$, the lower bound is set to $\Phi \sqcup \gamma_2$, which already \textit{contains} the second component's contribution; via $\mathit{Var}_\Phi$, every use of an aliased assumption $x$ now records $\Phi(x) \sqcup \upsilon$, so $D_1$ is sliced knowing the full assumption available to it, not just its own demand. The same applies symmetrically to $D_2$. Sliced under these inflated bounds, neither sub-derivation can produce a $\gamma_i$ whose join with the other's $\gamma_j$ admits further shrinkage at an aliased position -- the joint minimum is reached directly.
+
+%%% Local Variables:
+%%% mode: LaTeX
+%%% TeX-master: "PolymorphicTypeSlicing"
+%%% End:

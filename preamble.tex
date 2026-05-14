@@ -1,10 +1,420 @@
-\usepackage{lipsum}
+\usepackage[a4paper, margin=2.5cm]{geometry}
 
-\title{Title}
-\author{Author}
+\usepackage{amsmath,amssymb,amsthm,mathtools}
+
+% Em-dash glyph swapped to en-dash for narrower rendered dashes
+\usepackage{fontspec}
+\directlua{
+  fonts.handlers.otf.addfeature {
+    name = "shrinkemdash",
+    type = "substitution",
+    data = { [0x2014] = 0x2013 },
+  }
+}
+\setmainfont{Latin Modern Roman}[RawFeature={+shrinkemdash}]
+\setsansfont{Latin Modern Sans}[RawFeature={+shrinkemdash}]
+\setmonofont{Latin Modern Mono}[RawFeature={+shrinkemdash}]
+
+% Save \sqsubseteq before semantic redefines it (needed for tikz-cd labels)
+\let\sqsubseteqOriginal\sqsubseteq
+\let\sqsupseteqOriginal\sqsupseteq
+
+\usepackage{semantic}        % \inference
+\usepackage{stmaryrd}        % \llbracket, \rrparenthesis, ...
+\newcommand{\Circle}{\bigcirc} % wasysym incompatible with lualatex
+
+\usepackage[dvipsnames]{xcolor}
+\usepackage{soul}             % \hl
+
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{arydshln}         % dashed col separators
+
+\usepackage{graphicx}
+\usepackage{subcaption}
+\usepackage[labelfont=bf]{caption}
+
+\usepackage{tikz-cd}
+\usetikzlibrary{positioning,calc,fit,backgrounds,decorations.pathmorphing,shapes.geometric}
+\tikzcdset{
+  arrows={->},
+  diagrams={column sep=large, row sep=large}
+}
+
+\usepackage[most]{tcolorbox}
+\usepackage{fancyhdr}
+\usepackage[normalem]{ulem}
+
+\usepackage[backend=biber,style=numeric,sorting=nyt]{biblatex}
+\addbibresource{refs.bib}
+
+\usepackage{hyperref}
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  citecolor=magenta,
+  urlcolor=cyan,
+  pdftitle={Polymorphic Type Slicing},
+  pdfauthor={Max Carroll},
+}
+\usepackage{cleveref}
+
+\title{Polymorphic Type Slicing}
+\author{Max Carroll \\ Sidney Sussex College \\ University of Cambridge}
+\date{}
+
+\definecolor{commentgreen}{RGB}{2,112,10}
+\definecolor{weborange}{RGB}{255,165,0}
+\definecolor{frenchplum}{RGB}{129,20,83}
+
+% Vibrant overrides for dvipsnames slice/highlight colours
+\definecolor{BrickRed}{RGB}{210,35,40}
+\definecolor{NavyBlue}{RGB}{30,80,225}
+\definecolor{OliveGreen}{RGB}{35,165,45}
+\definecolor{Mulberry}{RGB}{215,55,175}
+
+% Universal-property diagram convention: assumed (Class 2), induced (Class 3)
+\colorlet{assumed}{BurntOrange!80!black}
+\colorlet{induced}{TealBlue!45!black}
+
+% Lattice ops and precision in a muted colour
+\definecolor{latticecolor}{HTML}{8055B5}
+\let\OLDsqcap\sqcap
+\let\OLDsqcup\sqcup
+\let\OLDsqsubset\sqsubset
+\let\OLDsqsupset\sqsupset
+\def\sqcap{\mathbin{{\color{latticecolor}\OLDsqcap}}}
+\def\sqcup{\mathbin{{\color{latticecolor}\OLDsqcup}}}
+\def\sqsubseteq{\mathrel{{\color{latticecolor}\sqsubseteqOriginal}}}
+\def\sqsupseteq{\mathrel{{\color{latticecolor}\sqsupseteqOriginal}}}
+\def\sqsubset{\mathrel{{\color{latticecolor}\OLDsqsubset}}}
+\def\sqsupset{\mathrel{{\color{latticecolor}\OLDsqsupset}}}
+\newcommand{\heytingto}{\mathbin{{\color{latticecolor}\to}}}
+\newcommand{\heytingminus}{\mathbin{{\color{latticecolor}\setminus}}}
+\newcommand{\latticetop}{{\color{latticecolor}\top}}
+\newcommand{\latticebot}{{\color{latticecolor}\bot}}
+
+% Highlighting
+\newcommand{\hlc}[2][yellow]{{%
+    \colorlet{foo}{#1}%
+    \sethlcolor{foo}\hl{#2}}%
+}
+\newcommand{\error}[1]{\hlc[pink!50]{#1}}
+\newcommand{\hlcmaths}[2][yellow!50]{\colorbox{#1}{$\displaystyle #2$}}
+
+\newcommand{\dyn}{{\color{teal}\texttt{?}}}          % dynamic type
+\newcommand{\gap}{{\color{teal}\Box}}                 % gap □
+\newcommand{\hole}[1][]{{\color{teal}\llparenthesis} #1 {\color{teal}\rrparenthesis}} % hole ⦇·⦈
+\newcommand{\cmark}{{\color{blue}\Circle}}            % context mark
+\newcommand{\type}[1]{\llbracket #1 \rrbracket}       % type interpretation
+\newcommand{\id}{\mathrm{id}}
+\newcommand{\code}[1]{\texttt{#1}}
+
+% Well-formedness: Δ ⊢ τ wf
+\newcommand{\wf}[2][\Delta]{#1 \vdash #2\;\mathsf{wf}}
+
+% Synthesis: Δ; Γ ⊢ e ⇑ τ;   #1 = ctx (default Δ;\,Γ), #2 = e, #3 = τ
+\newcommand{\synthesis}[3][\Delta;\,\Gamma]{#1 \vdash #2 {\color{BrickRed}\ \Uparrow}\ #3}
+% Analysis: Δ; Γ ⊢ e ⇓ τ
+\newcommand{\analysis}[3][\Delta;\,\Gamma]{#1 \vdash #2 {\color{BlueViolet}\ \Downarrow}\ #3}
+
+% Rule-name labels (text mode, for \texttt compatibility)
+\newcommand{\synr}[1]{\textnormal{{\color{BrickRed}$\Uparrow$}\texttt{#1}}}
+\newcommand{\anar}[1]{\textnormal{{\color{BlueViolet}$\Downarrow$}\texttt{#1}}}
+\newcommand{\cnsr}[1]{\textnormal{$#1$}}
+
+% Type assignment (internal language): Δ;Γ ⊢ d : τ
+\newcommand{\typeassignment}[3][\Delta;\Gamma]{#1 \vdash #2 : #3}
+
+% Synthesis slice: Γ ⊢ e ⟹ τ | S
+\newcommand{\synthesisslice}[4][\Gamma]{#1 \vdash #2 {\color{BrickRed}\ \Rightarrow}\ #3 \mid #4}
+% Analysis slice: Γ; C ⊢ e ⟸ τ | S
+\newcommand{\analysisslice}[5][\Gamma]{#1; #2 \vdash #3 {\color{BlueViolet}\ \Leftarrow}\ #4 \mid #5}
+
+% Casts: safe, error, chained
+\newcommand{\scast}[2]{{\color{blue}\langle} #1 {\color{blue}\Rightarrow} #2 {\color{blue}\rangle}}
+\newcommand{\scasterror}[2]{{\color{red}\langle} #1 {\color{red}\Rightarrow} \dyn {\color{red}\nRightarrow} #2 {\color{red}\rangle}}
+\newcommand{\scastcast}[3]{{\color{blue}\langle} #1 {\color{blue}\Rightarrow} #2 {\color{blue}\Rightarrow} #3 {\color{blue}\rangle}}
+
+% Type matching: ▸→, ▸ground, ▸∀
+\newcommand{\funmatch}{\blacktriangleright_\rightarrow}
+\newcommand{\groundmatch}{\blacktriangleright_{\text{ground}}}
+\newcommand{\forallmatch}{\blacktriangleright_\forall}
+
+% Elaboration judgements (with/without slice columns)
+\newcommand{\elaborationSynthesis}[5][\Gamma]{#1 \vdash #2 {\color{BrickRed}\ \Uparrow\ } #3 \leadsto #4 \dashv #5}
+\newcommand{\elaborationAnalysis}[6][\Gamma]{#1 \vdash #2 {\color{BlueViolet}\ \Downarrow\ } #3 \leadsto #4 : #5 \dashv #6}
+\newcommand{\elaborationSynthesisSlice}[6][\Gamma]{#1 \vdash #2 {\color{BrickRed}\ \Rightarrow\ } #3 \mid #4 \leadsto #5 \dashv #6}
+\newcommand{\elaborationAnalysisSlice}[9][\Gamma]{#1;\ #2 \vdash #3 {\color{BlueViolet}\ \Leftarrow\ } #4 \mid #5 \leadsto #6 : #7 \mid #8 \dashv #9}
+
+% Context classification: Δ; Γ ⊢ C at d ▷ Δ'; Γ' [ m ]
+\newcommand{\ctxclass}[5][\Delta;\,\Gamma]{#1 \vdash #2\;\mathbf{at}\;#3\;\triangleright\;#4\;[\,#5\,]}
+
+% Marking arrow ↬; \marks is a TeX primitive so we use \marksto
+\newcommand{\marksto}{\looparrowright}
+
+% Synthesis/analysis marking judgements: Δ; Γ ⊢ e ↬ ě ⇑/⇓ τ
+\newcommand{\synmark}[4][\Delta;\,\Gamma]{#1 \vdash #2 \marksto #3 {\color{BrickRed}\ \Uparrow}\ #4}
+\newcommand{\anamark}[4][\Delta;\,\Gamma]{#1 \vdash #2 \marksto #3 {\color{BlueViolet}\ \Downarrow}\ #4}
+
+% Marked context classification: Δ; Γ ⊢ C ↬ Č at d ▷ Δ'; Γ' [ m ]
+\newcommand{\mctxclass}[6][\Delta;\,\Gamma]{#1 \vdash #2 \marksto #3\;\mathbf{at}\;#4\;\triangleright\;#5\;[\,#6\,]}
+
+% Marked-expression accent ě (\check shadowed by LaTeX's \check)
+\newcommand{\chk}[1]{\check{#1}}
+
+% Mark wrappers ⦅·⦆ with a subscript glyph
+\definecolor{markcolor}{RGB}{170,40,60}
+\newcommand{\markopen}{{\color{markcolor}\llparenthesis}}
+\newcommand{\markclose}{{\color{markcolor}\rrparenthesis}}
+
+% Type-inconsistency mark ⦅ě⦆_{τ_syn ≁ τ_ana}
+\newcommand{\markincon}[3][\cdot]{{\markopen #1 \markclose}_{#2 \not\sim #3}}
+
+% Head-shape marks (focus's syn type fails join with □⇒□ / □+□ / □×□ / ∀·□)
+\newcommand{\markarrow}[1][\cdot]{{\markopen #1 \markclose}_{\blacktriangleright \Rightarrow}}
+\newcommand{\marksum}[1][\cdot]{{\markopen #1 \markclose}_{\blacktriangleright +}}
+\newcommand{\markprod}[1][\cdot]{{\markopen #1 \markclose}_{\blacktriangleright \times}}
+\newcommand{\markforall}[1][\cdot]{{\markopen #1 \markclose}_{\blacktriangleright \forall}}
+
+% Syntactic-limitation marks (bare λ⇒ / ι₁ / ι₂ in under-determined positions)
+\newcommand{\marklam}[1][\cdot]{{\markopen #1 \markclose}_{\sim \Rightarrow}}
+\newcommand{\markinj}[1][\cdot]{{\markopen #1 \markclose}_{\sim +}}
+\newcommand{\markprodsim}[1][\cdot]{{\markopen #1 \markclose}_{\sim \times}}
+
+% Free-variable (unbound) mark ⟨k⟩⇑
+\newcommand{\markvar}[1]{{\color{markcolor}\langle} #1 {\color{markcolor}\rangle}\!\Uparrow}
+
+% Red-dashed box around a marked term (error location)
+\newcommand{\markbox}[1]{%
+  \tikz[baseline=(N.base)]{%
+    \node[draw=BrickRed!85, dashed, line width=0.7pt, rounded corners=2pt,
+          inner sep=2pt, fill=BrickRed!6, anchor=base] (N) {\strut$#1$};%
+  }%
+}
+
+% Lighter \sli[OliveGreen] for structural parts of an analysis-slice context
+\newcommand{\slist}[1]{%
+  \tikz[baseline=(N.base)]{%
+    \node[draw=OliveGreen!25, dashed, line width=0.4pt, rounded corners=1.5pt,
+          inner sep=1.5pt, fill=OliveGreen!4, anchor=base] (N) {\strut$#1$};%
+  }%
+}
+
+% Per-mark debugging query block: #1 = υ (syn), #2 = ψ (ana)
+\newcommand{\queryblock}[2]{%
+  \begin{center}
+  \small
+  \begin{tabular}{r@{\;}c@{\;}l}
+    {\color{NavyBlue}synthesis query}  & $\upsilon\;=$ & $#1$ \\
+    {\color{OliveGreen}analysis query} & $\psi\;=$ & $#2$ \\
+  \end{tabular}
+  \end{center}
+}
+
+% Structural variables (from formalism)
+\newcommand{\C}{\mathcal{C}}      % expression contexts
+\newcommand{\Cs}{c}                % context slices
+\newcommand{\p}{d}                 % context typing slices
+\newcommand{\F}{\mathcal{F}}      % typing-assumption contexts (endomorphisms)
+\newcommand{\f}{f}                 % typing-assumption context slices
+\newcommand{\Sb}{\mathcal{S}}     % type-indexed slices
+
+% Analysis slices (cast section): use dutchcal A
+\DeclareMathAlphabet{\mathdcal}{U}{dutchcal}{m}{n}
+\newcommand{\A}{\mathdcal{A}}
+
+% Type properties (predicate-style)
+\newcommand{\ground}[1][\tau]{#1\text{ ground}}
+\newcommand{\final}[1][d]{#1\text{ final}}
+\newcommand{\val}[1][d]{#1\text{ val}}
+\newcommand{\boxedval}[1][d]{#1\text{ boxedval}}
+\newcommand{\indet}[1][d]{#1\text{ indet}}
+
+% Contextual substitution [d/u]
+\newcommand{\contextualsub}[1][d/u]{\llbracket #1 \rrbracket}
+
+% Polymorphism
+\newcommand{\Forall}[2]{\forall #1.\ #2}        % ∀α.τ
+\newcommand{\TLam}[2]{\Lambda #1.\ #2}           % Λα.e
+\newcommand{\TApp}[2]{#1\ @#2}                   % e @τ
+\newcommand{\ForallSlice}[2]{\forall #1.\ #2}    % ∀α.υ
+\newcommand{\gapforall}{{\color{teal}\forall\Box.\Box}}
+
+% Labelled tuples
+\newcommand{\lbl}[2]{\mathtt{#1} : #2}
+\newcommand{\tuplety}[1]{\{#1\}}
+
+% Mechanisation status symbols: ○ yes (green), × no (red), ⊗ partial (orange)
+\newcommand{\yo}{{\color{OliveGreen}$\bigcirc$}\;}
+\newcommand{\no}{{\color{red}$\times$}\;}
+\DeclareRobustCommand{\po}{{\color{orange}$\mathbin{\ooalign{$\bigcirc$\cr\hidewidth$\times$\hidewidth}}$}\;}
+
+% Theorem style: "○ Theorem 4.1 (Name)."
+\newtheoremstyle{mechplain}%
+  {\topsep}{\topsep}%
+  {\itshape}{}%
+  {\bfseries}{.}{ }%
+  {\thmname{#1} \thmnumber{#2}\thmnote{\;\normalfont(#3)}}%
+
+\theoremstyle{mechplain}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{proposition}[theorem]{Proposition}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{conjecture}[theorem]{Conjecture}
+\newtheorem{counterexample}[theorem]{Counterexample}
+
+\theoremstyle{definition}
+\newtheorem{definition}[theorem]{Definition}
+\newtheorem{example}[theorem]{Example}
+
+\theoremstyle{remark}
+\newtheorem{remark}[theorem]{Remark}
+
+\pagestyle{fancy}
+\fancyhf{}
+\fancyhead[L]{\small\nouppercase{\leftmark}}
+\fancyhead[R]{\thepage}
+\renewcommand{\headrulewidth}{0.4pt}
+\setlength{\headheight}{14pt}
+
+% Margin annotations on the LEFT
+\reversemarginpar
+\setlength{\marginparwidth}{2.1cm}
+\setlength{\marginparsep}{0.15cm}
+% \marginnote survives tcolorbox / theorem envs where \marginpar fails
+\usepackage{marginnote}
+
+% Section-level: status symbol + Agda file path, aligned with section heading
+\newcommand{\mech}[2]{\marginpar{\raggedleft%
+  {\Large#1}\,{\tiny\texttt{#2}}}}
+\newcommand{\mechyes}[1]{\mech{{\color{OliveGreen}$\bigcirc$}}{#1}}
+\newcommand{\mechno}[1]{\mech{{\color{red}$\times$}}{#1}}
+\newcommand{\mechpartial}[1]{\mech{{\color{orange}$\mathbin{\ooalign{$\bigcirc$\cr\hidewidth$\times$\hidewidth}}$}}{#1}}
+% \mechfile path; optional first arg = extra vertical offset (default lifts to section heading)
+\newcommand{\mechfile}[2][-2\baselineskip]{\marginnote[\raggedleft\tiny\color{black!55}\texttt{#2}]{\raggedleft\tiny\color{black!55}\texttt{#2}}[#1]}
+
+% Box-internal margin annotation (place inside tcolorbox after \begin{...box})
+\newcommand{\mechbox}[1]{\marginnote[\raggedleft\tiny\color{black!55}\texttt{#1}]{}}
+
+% Inline status symbols for theorem/corollary headers
+\newcommand{\iy}{$\bigcirc$\;}
+\newcommand{\ino}{$\times$\;}
+\newcommand{\ipart}{$\bigcirc\!\times$\;}
+
+\newtcolorbox{recipe}[1]{
+  colback=blue!3,
+  colframe=blue!40,
+  fonttitle=\bfseries,
+  title={Recipe: #1},
+  sharp corners,
+  boxrule=0.5pt
+}
+
+\newtcolorbox{originalerror}[1][]{
+  colback=red!3,
+  colframe=red!40,
+  fonttitle=\bfseries,
+  title={Error (Original)#1},
+  sharp corners,
+  boxrule=0.5pt
+}
+
+\newtcolorbox{majortheorembox}{
+  colback=green!3,
+  colframe=OliveGreen!60,
+  sharp corners,
+  boxrule=0.5pt,
+  breakable,
+  enhanced
+}
+
+% Master-theorem sub-numbering: produces "Theorem N.M.k"
+\newcounter{subthm}
+\newcommand{\masterthmnum}{??}
+\renewcommand{\thesubthm}{\masterthmnum.\arabic{subthm}}
+\newcommand{\mastercases}{%
+  \xdef\masterthmnum{\thetheorem}%
+  \setcounter{subthm}{0}%
+}
+\newenvironment{thmcase}[1][]{%
+  \refstepcounter{subthm}%
+  \begin{majortheorembox}%
+  \par\noindent{\bfseries Theorem~\thesubthm}%
+  \ifx\\#1\\\else\ (\textit{#1})\fi%
+  {\bfseries.}\itshape\quad\ignorespaces
+}{%
+  \par\end{majortheorembox}%
+}
+
+\newtcolorbox{counterexamplebox}{
+  colback=orange!3,
+  colframe=orange!50,
+  sharp corners,
+  boxrule=0.5pt,
+  breakable,
+  enhanced
+}
+
+% Inline mini-icons for the \sectionlegend
+\newcommand{\thmboxicon}{%
+  \tikz[baseline=-0.6ex]{%
+    \node[draw=OliveGreen!60, fill=green!3, line width=0.5pt,
+          inner sep=0pt, minimum width=10pt, minimum height=6pt] {};%
+  }%
+}
+\newcommand{\ctrboxicon}{%
+  \tikz[baseline=-0.6ex]{%
+    \node[draw=orange!50, fill=orange!3, line width=0.5pt,
+          inner sep=0pt, minimum width=10pt, minimum height=6pt] {};%
+  }%
+}
+
+% Section-top legend covering mechanisation symbols and callout boxes
+\newcommand{\sectionlegend}{%
+  \noindent\textit{Legend:}\ \yo fully mechanised, \po mechanised with postulates, \no not mechanised, \thmboxicon\ important theorem, \ctrboxicon\ counterexample.
+  \par\medskip
+}
+
+% Multi-slice highlighting: A bold red, B/C/D underlines in distinct colours
+\newcommand{\sliceA}[1]{\textbf{\underline{\textcolor{BrickRed}{#1}}}}
+\newcommand{\sliceB}[1]{\underline{\textcolor{NavyBlue}{#1}}}
+\newcommand{\sliceC}[1]{\underline{\textcolor{OliveGreen}{#1}}}
+\newcommand{\sliceD}[1]{\underline{\textcolor{Mulberry}{#1}}}
+
+% Highlighted-box slice notation. #1 (opt) = colour (default NavyBlue), #2 = math
+\newcommand{\sli}[2][NavyBlue]{%
+  \tikz[baseline=(N.base)]{%
+    \node[draw=#1!60, dashed, line width=0.4pt, rounded corners=1.5pt,
+          inner sep=1.5pt, fill=#1!12, anchor=base] (N) {\strut$#2$};%
+  }%
+}
+
+% Removable-region marker (red outline over a slice highlight)
+\newcommand{\slr}[1]{%
+  \tikz[baseline=(N.base)]{%
+    \node[draw=BrickRed!80, line width=0.8pt, rounded corners=2pt,
+          inner sep=3pt, fill=none, anchor=base] (N) {\strut$#1$};%
+  }%
+}
+
+% Full slice: assumption box stacked above the sliced term
+\newcommand{\fullslice}[2]{%
+  \begin{tikzpicture}[baseline=(t.base), every node/.style={inner sep=3pt}]
+    \node[draw, line width=0.9pt, rounded corners,
+          label={[font=\scriptsize\itshape]above:assumptions}] (a) {$#1$};
+    \node[below=6pt of a] (t) {$#2$};
+  \end{tikzpicture}%
+}
+
+\newcommand{\gapbox}{\boxdot}     % dotted square (gap in expression context)
+
+% Word count: generated by texcount during nix build
+% Local: texcount -inc -sum=1,0,0,0,0,0,0 -0 PolymorphicTypeSlicing.tex > wordcount.aux
+\newcommand{\wordcount}{\IfFileExists{wordcount.aux}{\input{wordcount.aux}}{N/A}}
 
 %%% Local Variables:
 %%% mode: LaTeX
 %%% TeX-master: "PolymorphicTypeSlicing"
 %%% End:
-

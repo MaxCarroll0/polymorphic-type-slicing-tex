@@ -1,0 +1,249 @@
+\section{Background}
+\label{sec:background}
+
+In this chapter I introduce the key concepts underlying the core calculus formalised: bidirectional typing, explicit polymorphism (System~F), and gradual typing. I assume familiarity with standard type systems expressed via judgements, the simply-typed lambda calculus, and basic set notation.
+
+\subsection{Bidirectional Types}
+\label{sec:bidirectional-types}
+
+A \textit{bidirectional type system}~\cite{BidirectionalTypes} is an algorithmic specification of typing judgements, naturally lending itself to direct typing algorithms which do not require \textit{guessing} of types during type checking. Such systems require annotations, but annotation burden is lessened by using local type inference~\cite{LocalInference} requiring annotations only at redexes.\footnote{i.e. a function application must use an annotated function.}
+
+This is achieved by specifying the \textit{mode} of the type parameter in a typing judgement, distinguishing when it is an \textit{input} (type analysis/checking) and when it is an \textit{output} (type synthesis):
+\[\synthesis{e}{\tau}\]
+Read as: \textit{$e$ synthesises type $\tau$ under typing assumptions $\Gamma$}. The type $\tau$ is an \textit{output}.
+\[\analysis{e}{\tau}\]
+Read as: \textit{$e$ analyses against type $\tau$ under typing assumptions $\Gamma$}. The type $\tau$ is an \textit{input}.
+
+When designing such a system, care must be taken to ensure \textit{mode correctness}~\cite{ModeCorrectness}: an input must never need to be \textit{guessed}. For example, the following function application rule is \textit{not} mode correct:
+\[\inference{\analysis{e_1}{{\color{red}\tau_1} \to \tau_2} & \analysis{e_2}{{\color{red}\tau_1}}}{\analysis{e_1(e_2)}{\tau_2}}\]
+Here I try to check $e_2$ with input ${\color{red}\tau_1}$, which is not known from either an output of any premise or from the input to the conclusion $\tau_2$. On the other hand, the following \textit{is} mode correct:
+\[\inference{\synthesis{e_1}{\tau_1 \to \tau_2} & \analysis{e_2}{\tau_1}}{\synthesis{e_1(e_2)}{\tau_2}}\]
+Now $\tau_1$ is known, being synthesised from the first premise. We never have to ``guess'' any types.
+
+Such languages have two fundamental rules:
+\[\inference[\textsc{SVar}]{x : \tau \in \Gamma}{\synthesis{x}{\tau}} \qquad
+  \inference[\textsc{Sub}]{\synthesis{e}{\tau}}{\analysis{e}{\tau}}\]
+Variables synthesise their type from the typing assumptions. Subsumption bridges the two modes: any term that can synthesise a type also analyses against that same type.
+
+Type slicing is formalised for bidirectional type systems.
+
+\subsection{Example: System F}
+\label{sec:system-f}
+
+System F~\cite[ch.~23]{TAPL} extends the simply-typed lambda calculus with \textit{parametric polymorphism}: type functions $\Lambda\alpha.\; e$, universal types $\forall\alpha.\;\tau$, and type application $e\,\langle\sigma\rangle$. A polymorphic function like the identity $\Lambda\alpha.\;\lambda x \mathbin{:} \alpha.\; x$ has type $\forall\alpha.\;\alpha \Rightarrow \alpha$ and can be instantiated at any type.
+
+System F can be expression within the bidirectional framework:
+\[\inference[\textsc{S$\Lambda$}]{\synthesis{e}{\tau}}{\synthesis{\Lambda\alpha.\; e}{\forall\alpha.\;\tau}} \qquad
+  \inference[\textsc{STApp}]{\synthesis{e}{\forall\alpha.\;\tau'}}{\synthesis{e\,\langle\sigma\rangle}{[0 \mapsto \sigma]\\,\tau'}}\]
+Type functions synthesis a $\forall$-type when the body synthesises under an extended type variable context which may now reference the newly bound type variable. Type application substitutes the bound type variable for a provided type argument.
+
+These rules are mode correct: type application must first \textit{synthesise} the $\forall$-type from $e$ before it can determine what substitution to perform.
+
+\subsection{Gradual Types}
+\label{sec:gradual-types}
+
+A \textit{gradual type system}~\cite{GradualFunctional, GradualRefined} combines static and dynamic typing. Terms may be annotated with the dynamic type $\gap$, marking regions of code omitted from static type-checking but still \textit{interoperable} with statically typed code. For example, the following type-checks:
+\begin{center}
+\texttt{let x :\ } $\gap$ \texttt{= 10 in x \^{} "str"}
+\end{center}
+Where \texttt{\^{}} is string concatenation expecting inputs to be \code{String}. This would then cause a runtime \textit{cast error} when attempting to calculate \code{10 \^{} "str"}.
+
+\subsubsection{Consistency}
+
+This is enabled by a \textit{consistency} relation $\tau_1 \sim \tau_2$, a weakening of type equality. Consistency replaces equality in the typing rules, allowing types to be used interchangeably when they are consistent. Every type is consistent with the dynamic type $\gap$, and compound types are consistent when their sub-parts are:
+\[\inference{}{\tau \sim \gap} \qquad \inference{}{\gap \sim \tau} \qquad \inference{}{\tau \sim \tau} \qquad \inference{\tau_1 \sim \tau_1' & \tau_2 \sim \tau_2'}{\tau_1 \to \tau_2 \sim \tau_1' \to \tau_2'}\]
+However, consistency is \textit{not transitive}: $\mathit{Int} \sim \gap \sim \mathit{Bool}$ does not imply $\mathit{Int} \sim \mathit{Bool}$. This non-transitivity is essential -- preventing the dynamic type from collapsing all type distinctions.
+
+After type-checking, explicit \textit{casts} are inserted into partially annotated programs by elaboration. Then, at runtime, type errors which were masked by dynamic-type annotations are caught as \textit{cast errors}.
+
+\subsubsection{Graduality}
+
+A true gradual type system satisfies a \textit{gradual guarantee} property, first specified by Siek et al. in their refined criteria~\cite{GradualRefined}. To specify this we first need to introduce the notion of \textit{type precision}, written $\tau \sqsubseteq \tau'$, which orders types by their dynamic content: $\gap$ is the least precise type, and concrete types like $\mathit{Int} \to \mathit{Bool}$ are maximally precise, while compound types can be partially dynamic, e.g. $\gap \Rightarrow \mathit{Bool}$.
+
+The only relevant part of graduality to Type Slicing is the downwards direction of the static gradual guarantee. 
+
+\paragraph{Downwards graduality.} If a well-typed program is made \textit{less precise} (type annotations replaced by $\gap$), it remains well-typed, possibly with a less precise type. In a bidirectional setting: if $\synthesis{e}{\tau}$ and $\Gamma' \sqsubseteq \Gamma$, $e' \sqsubseteq e$, then $\exists\,\tau'.\; \Gamma' \vdash e'\;{\color{BrickRed}\Uparrow}\;\tau'$ with $\tau' \sqsubseteq \tau$.
+
+\subsection{Lattice Background}
+\label{sec:lattice-background}
+
+The foundations for program highlighting in Type Slicing are built upon lattices, which I introduce here.
+
+A \textit{partial order} $(L, \sqsubseteq)$ is a set $L$ equipped with a reflexive, transitive, and antisymmetric relation $\sqsubseteq$. For example, precision in gradual typing forms a partial order, with $a \sqsubseteq b$ intuitively meaning ``$b$ carries at least as much type information as $a$''.
+
+A \textit{lattice} is a partial order in which every pair of elements in $L$ have both a greatest lower bound (a \textit{meet}) and a least upper bound (a \textit{join}) under the partial order. A lattice is \textit{bounded} if it has a bottom element $\bot$ ($\bot \sqsubseteq x$ for all $x$) and a top element $\top$ ($x \sqsubseteq \top$ for all $x$). A \textit{meet-semilattice} is a partial order in which every pair has a meet but not necessarily a join; dually for a \textit{join-semilattice}. A bounded lattice is \textit{distributive} if $a \sqcap (b \sqcup c) = (a \sqcap b) \sqcup (a \sqcap c)$ for all $a, b, c$.
+
+The meet and join operations have natural interpretations under the precision interpretation:
+\begin{itemize}
+\item The \textit{meet} $a \sqcap b$ is the most precise element that agrees with both $a$ and $b$, retaining the type information they share (Figure~\ref{fig:univ-meet}).
+\item The \textit{join} $a \sqcup b$ is the least precise element that is still as precise as both $a$ and $b$, combining all the type information present in either (Figure~\ref{fig:univ-join}).
+\end{itemize}
+
+\paragraph{Heyting algebras.} A bounded distributive lattice is a \textit{Heyting algebra}~\cite{Heyting1930, DaveyPriestley} if it has an \textit{implication} operation $a \to b$ satisfying the adjunction:
+\[c \sqcap a \sqsubseteq b \quad\text{iff}\quad c \sqsubseteq (a \to b)\]
+That is, $a \to b = \bigsqcup\{\,c \mid c \sqcap a \sqsubseteq b\,\}$ is the largest element whose meet with $a$ is below $b$. The \textit{pseudocomplement} of $a$ is $\neg a = a \to \bot$. Again, when interpreting $\sqsubseteq$ as type precision, $a \to b$ intuitively means: ``what is the most precise element such that, combined with $a$, the result is no more precise than $b$?'' (Figure~\ref{fig:univ-imp}.)
+
+\paragraph{Co-Heyting algebras.} Dually, a bounded distributive lattice is a \textit{co-Heyting algebra}~\cite{Lawvere1991} if it has a \textit{subtraction} operation $a \setminus b$ satisfying:
+\[a \sqsubseteq b \sqcup c \quad\text{iff}\quad a \setminus b \sqsubseteq c\]
+i.e.\ $a \setminus b = \bigsqcap\{\,c \mid a \sqsubseteq b \sqcup c\,\}$ is the smallest element whose join with $b$ is above $a$; the \textit{supplement} of $a$ is ${\sim}a = \top \setminus a$. Reading $\sqsubseteq$ as type precision, $a \setminus b$ answers: ``what type information in $a$ is missing from $b$?'' (Figure~\ref{fig:univ-sub}.)
+
+\paragraph{Bi-Heyting algebras.} A \textit{bi-Heyting algebra}~\cite{Rauszer1974, ReyesZolfaghari1996} is simultaneously a Heyting algebra and a co-Heyting algebra. Every \textit{finite} bounded distributive lattice is a bi-Heyting algebra, because the required suprema and infima are over finite sets~\cite{DaveyPriestley}.
+
+\begin{figure}[!htbp]
+\centering
+\begin{subfigure}[t]{0.45\textwidth}
+\centering
+\begin{tikzcd}[arrows={->}, column sep=small, row sep=normal]
+& {\color{assumed} c} \arrow[dl, assumed, "\sqsupseteqOriginal"' {sloped}] \arrow[dr, assumed, "\sqsubseteqOriginal"' {sloped}] \arrow[d, dashed, induced, "\sqsubseteqOriginal" {sloped}] & \\
+a & a \sqcap b \arrow[l, "\sqsubseteqOriginal"] \arrow[r, "\sqsubseteqOriginal"'] & b
+\end{tikzcd}
+\caption{Meet as product.}
+\label{fig:univ-meet}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.45\textwidth}
+\centering
+\begin{tikzcd}[arrows={->}, column sep=small, row sep=normal]
+a \arrow[r, "\sqsubseteqOriginal"] \arrow[dr, assumed, "\sqsubseteqOriginal"' {sloped}] & a \sqcup b \arrow[d, dashed, induced, "\sqsubseteqOriginal" {sloped}] & b \arrow[l, "\sqsubseteqOriginal"'] \arrow[dl, assumed, "\sqsupseteqOriginal" {sloped}] \\
+& {\color{assumed} c} &
+\end{tikzcd}
+\caption{Join as coproduct.}
+\label{fig:univ-join}
+\end{subfigure}
+
+\bigskip
+
+\begin{subfigure}[t]{0.45\textwidth}
+\centering
+\begin{tikzcd}[arrows={->}, column sep=small, row sep=normal]
+{\color{assumed} c \sqcap a} \arrow[r, assumed, "\sqsubseteqOriginal"] \arrow[dr, dashed, induced, "\sqsubseteqOriginal"' {sloped}] & b \\
+& (a \to b) \sqcap a \arrow[u, "\sqsubseteqOriginal"' {sloped}]
+\end{tikzcd}
+\caption{Implication as exponential.}
+\label{fig:univ-imp}
+\end{subfigure}
+\hfill
+\begin{subfigure}[t]{0.45\textwidth}
+\centering
+\begin{tikzcd}[arrows={->}, column sep=small, row sep=normal]
+b \sqcup (a \setminus b) \arrow[r, dashed, induced, "\sqsubseteqOriginal"] & {\color{assumed} b \sqcup c} \\
+& a \arrow[u, assumed, "\sqsubseteqOriginal"' {sloped}] \arrow[ul, "\sqsupseteqOriginal" {sloped}]
+\end{tikzcd}
+\caption{Subtraction as co-exponential.}
+\label{fig:univ-sub}
+\end{subfigure}
+\caption{Lattice operations. Where \textcolor{assumed}{assuming} some relations (solid arrows) \textcolor{induced}{induces} additional relations (dashed arrows).}
+\label{fig:lattice-universal}
+\end{figure}
+
+\paragraph{Product lattices.} Given two lattices $(L_1, \sqsubseteq_2)$ and $(L_2, \sqsubseteq_2)$, their \textit{product} $L_1 \times L_2$ is a lattice defined componentwise: $(a_1, a_2) \sqsubseteq (b_1, b_2)$ iff $a_1 \sqsubseteq_1 b_1$ and $a_2 \sqsubseteq_2 b_2$ (Figure~\ref{fig:product-bifunctor}). Meets and joins are similarly defined componentwise. If both lattices are bounded, distributive, or bi-Heyting, so is the product.
+
+\begin{figure}[!htbp]
+\centering
+\begin{tikzpicture}[
+    >={Stealth[length=4pt]},
+    every node/.style={inner sep=1.5pt, font=\small},
+    inducededge/.style={->, draw=Purple, dashed, line width=0.8pt, dash pattern=on 3pt off 2pt}
+]
+\node (b1) at (-3.6, 1.4) {$b_1$};
+\node (a1) at (-3.6, -1.4) {$a_1$};
+\draw[->, Mahogany!80, line width=0.55pt] (a1) -- node[auto, sloped, font=\scriptsize, Mahogany!75!black] {$\sqsubseteq_1$} (b1);
+
+\node (b2) at ( 3.6, 1.4) {$b_2$};
+\node (a2) at ( 3.6, -1.4) {$a_2$};
+\draw[->, NavyBlue!80, line width=0.55pt] (a2) -- node[auto, sloped, font=\scriptsize, NavyBlue!75!black] {$\sqsubseteq_2$} (b2);
+
+\node (aa) at (-1.05, -1.4) {$(a_1, a_2)$};
+\node (ba) at ( 1.05, -1.4) {$(b_1, a_2)$};
+\node (ab) at (-1.05,  1.4) {$(a_1, b_2)$};
+\node (bb) at ( 1.05,  1.4) {$(b_1, b_2)$};
+
+\draw[->, gray!65, line width=0.55pt, transform canvas={yshift=-2.2pt}]
+    (aa) -- node[below, font=\scriptsize, gray!75!black] {$\cong$} (ba);
+\draw[->, Mahogany!75, line width=0.55pt, transform canvas={yshift=2.2pt}]
+    (aa) -- node[above, font=\scriptsize, Mahogany!75!black] {$\sqsubseteq_1$} (ba);
+
+\draw[->, gray!65, line width=0.55pt, transform canvas={yshift=-2.2pt}]
+    (ab) -- node[below, font=\scriptsize, gray!75!black] {$\cong$} (bb);
+\draw[->, Mahogany!75, line width=0.55pt, transform canvas={yshift=2.2pt}]
+    (ab) -- node[above, font=\scriptsize, Mahogany!75!black] {$\sqsubseteq_1$} (bb);
+
+\draw[->, gray!65, line width=0.55pt, transform canvas={xshift=-2.2pt}]
+    (aa) -- node[auto, sloped, font=\scriptsize, gray!75!black] {$\cong$} (ab);
+\draw[->, NavyBlue!75, line width=0.55pt, transform canvas={xshift=2.2pt}]
+    (aa) -- node[auto, sloped, swap, font=\scriptsize, NavyBlue!75!black] {$\sqsubseteq_2$} (ab);
+
+\draw[->, gray!65, line width=0.55pt, transform canvas={xshift=-2.2pt}]
+    (ba) -- node[auto, sloped, font=\scriptsize, gray!75!black] {$\cong$} (bb);
+\draw[->, NavyBlue!75, line width=0.55pt, transform canvas={xshift=2.2pt}]
+    (ba) -- node[auto, sloped, swap, font=\scriptsize, NavyBlue!75!black] {$\sqsubseteq_2$} (bb);
+
+\draw[inducededge] (aa) -- node[sloped, above, font=\scriptsize, Purple, fill=white, inner sep=1pt] {$\sqsubseteq$} (bb);
+
+\begin{scope}[on background layer]
+  \node[draw=Mahogany!50, fill=Mahogany!5, rounded corners=4pt, line width=0.5pt,
+        inner sep=8pt, fit={(a1)(b1)},
+        label={[font=\scriptsize\itshape, Mahogany!75!black]above:$L_1$}] (lat1) {};
+  \node[draw=NavyBlue!50, fill=NavyBlue!5, rounded corners=4pt, line width=0.5pt,
+        inner sep=8pt, fit={(a2)(b2)},
+        label={[font=\scriptsize\itshape, NavyBlue!75!black]above:$L_2$}] (lat2) {};
+  \node[draw=Purple!50, fill=Purple!4, rounded corners=4pt, line width=0.5pt,
+        inner sep=16pt, fit={(aa)(bb)},
+        label={[font=\scriptsize\itshape, Purple!75!black]above:$L_1 \times L_2$}] (latP) {};
+\end{scope}
+
+\draw[-{Implies[]}, double, double distance=1.4pt, gray!60, line width=0.4pt] (lat1.east) to[bend left=12] (latP.west);
+\draw[-{Implies[]}, double, double distance=1.4pt, gray!60, line width=0.4pt] (lat2.west) to[bend right=12] (latP.east);
+
+\end{tikzpicture}
+\caption{Product Lattice Precision}
+\label{fig:product-bifunctor}
+\end{figure}
+
+\subsection{Well-Foundedness, Monotonicity, and Fixed Points}
+\label{sec:fixed-points}
+
+A partial order $(L, \sqsubseteq)$ is \textit{well-founded} if it admits no infinite \textit{strictly} descending chain $x_0 \sqsupset x_1 \sqsupset x_2 \sqsupset \cdots$. This is immediate on finite sets: every chain is bounded by the finite cardinality $|L|$.
+
+A function $f : L \to L$ is \textit{monotone} if $x \sqsubseteq y$ implies $f(x) \sqsubseteq f(y)$, and \textit{anti-monotone} if $x \sqsubseteq y$ implies $f(y) \sqsubseteq f(x)$.
+
+\begin{lemma}[Monotonicity of co-Heyting subtraction]\label{lem:heyt-mono}
+In a co-Heyting algebra $(L, \sqsubseteq, \sqcup, \heytingminus)$, the binary operation $\heytingminus$ is monotone in its first argument and anti-monotone in its second: for all $a, a', b, b' \in L$,
+\[ a \sqsubseteq a' \;\Rightarrow\; a \heytingminus b \sqsubseteq a' \heytingminus b, \qquad b \sqsubseteq b' \;\Rightarrow\; a \heytingminus b' \sqsubseteq a \heytingminus b. \]
+\end{lemma}
+
+\begin{proof}
+By the universal property of $\heytingminus$, $x \heytingminus y \sqsubseteq z \iff x \sqsubseteq y \sqcup z$.
+\textit{First argument:} take $z = a' \heytingminus b$. Then $a' \sqsubseteq b \sqcup z$, so $a \sqsubseteq a' \sqsubseteq b \sqcup z$, giving $a \heytingminus b \sqsubseteq z = a' \heytingminus b$.
+\textit{Second argument:} take $z = a \heytingminus b$. Then $a \sqsubseteq b \sqcup z \sqsubseteq b' \sqcup z$, giving $a \heytingminus b' \sqsubseteq z = a \heytingminus b$.
+\end{proof}
+
+\begin{theorem}[Kleene Fixed Point, finite case]\label{thm:kleene}
+Let $(L, \sqsubseteq, \bot)$ be a finite partial order with bottom element $\bot$, and let $f : L \to L$ be monotone. Then $f$ has a least fixed point $\mu f = f^n(\bot)$ for some $n \leq |L|$.
+\end{theorem}
+
+\begin{proof}
+The chain $\bot \sqsubseteq f(\bot) \sqsubseteq f^2(\bot) \sqsubseteq \cdots$ is ascending by monotonicity. Since $L$ is finite, this chain must stabilise: there is some $n \leq |L|$ with $f^n(\bot) = f^{n+1}(\bot)$. So $f^n(\bot)$ is a fixed point. Further, $f^n(\bot)$ is a least fixed point: let $x$ be any fixed point of $f$. We show $f^k(\bot) \sqsubseteq x$ by induction on $k$. Base: $\bot \sqsubseteq x$ since $\bot$ is the bottom. Step: $f^{k+1}(\bot) = f(f^k(\bot)) \sqsubseteq f(x) = x$ by monotonicity of $f$ and the induction hypothesis.
+\end{proof}
+
+\begin{figure}[t]
+\centering
+\begin{tikzpicture}[>=stealth, node distance=1.5cm, every node/.style={inner sep=2pt}]
+  \node (b) {$\bot$};
+  \node (f1) [right=of b] {$f(\bot)$};
+  \node (f2) [right=of f1] {$f^2(\bot)$};
+  \node (dots) [right=0.8cm of f2] {$\cdots$};
+  \node (mu) [right=0.8cm of dots] {$\mu f$};
+  \draw[->] (b) -- node[above,font=\scriptsize] {$\sqsubseteq$} (f1);
+  \draw[->] (f1) -- node[above,font=\scriptsize] {$\sqsubseteq$} (f2);
+  \draw[->] (f2) -- (dots);
+  \draw[->] (dots) -- node[above,font=\scriptsize] {$=$} (mu);
+\end{tikzpicture}
+\caption{Kleene iteration to the least fixed point $\mu f$.}
+\label{fig:kleene-iteration}
+\end{figure}
+
+%%% Local Variables:
+%%% mode: LaTeX
+%%% TeX-master: "PolymorphicTypeSlicing"
+%%% End:
