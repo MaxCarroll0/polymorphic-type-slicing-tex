@@ -297,7 +297,7 @@ A more subtle case is of let-bindings, which has difference assumptions for its 
 A slice of a let-expression can be constructed from a slice $s_1$ of the definition and a slice $s_2$ of the body, constrained with a assumption consistency condition: the body's used assumptions for the bound variable $x$ must be \textit{at most as precise as} the type synthesised by the slice of the definition:
 \[ s_2.\gamma(x) \mathbin{\sqsubseteq} s_1.\phi \]
 Then, upon joining the assumptions for the two slices, we must remove the assumption on $x$ from the body (notated $\gamma_{\setminus x}$, as this is now provided by the definition: 
-\[s_1 \texttt{def} s\_2 \triangleq (s_1.\gamma \sqcup s_2.\gamma_{\setminus x},\; \mathbf{let}\;x = s_1.\varsigma\;\mathbf{in}\;s_2.\varsigma)\]
+\[s_1 \texttt{def} s_2 \triangleq (s_1.\gamma \sqcup s_2.\gamma_{\setminus x},\; \mathbf{let}\;x = s_1.\varsigma\;\mathbf{in}\;s_2.\varsigma)\]
 
 \begin{thmcase}[Case: Bindings]\mechbox{min-def-\\decomposability}\label{thm:min-def-decomp}
 Let $m : \minsynslice{\synr{Let}\,D_1\,D_2}{\upsilon}$. Then there exists $\phi_1 \in \lfloor\tau_1\rfloor$ and minimal slices $m_1 : \minsynslice{D_1}{\phi_1}$ and $m_2 : \minsynslice{D_2}{\upsilon}$ satisfying $m_2.\gamma(x) \sqsubseteq m_1.\phi$, with $m = m_1 \mathbin{\mathsf{def}} m_2$.

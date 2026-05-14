@@ -6,9 +6,9 @@ Program slicing of various different forms, relating to dynamic execution, data 
 \subsection{Classical Program Slicing}
 \label{sec:cmp-program-slicing}
 
-Classical program slicing~\cite{Weiser1984,TipSurvey1995} was developed for imperative programs. The slicing criterion is a (program-point, variable) pair, and the slice is a sub-program obtained by deleting statements that preserves the runtime value of the chosen variable at the chosen point. Static and dynamic variants~\cite{KorelLaski1988} differ in whether the preservation is universally quantified over inputs or specialised to a single execution, but both share the same shape: the analysis tracks data and control dependence between statements, and the slice is a syntactic deletion that preserves a runtime observation.
+Classical program slicing \cite{Weiser1984,TipSurvey1995} was developed for imperative programs. Slices are syntactically obtained by deleting lines in the code, which is less flexible than omitting arbitrary sub-terms in a syntax tree as used here. The equivalent of type queries is a `slicing criterion', which is a (program-point, variable) pair, with the slice preserving the runtime value of the chosen variable at the chosen point. Type queries have a more complex, compound structure as compared to simple variables, and slices cannot preserve the type query in general (\cref{lem:exact-not-exist}), so we adopt the notion of \textit{validity} instead of preservation.
 
-Type slicing is in a different idiom on every count. The object is an expression (and assumptions) lattice rather than a sequence of statements; the criterion is a query type $\upsilon \sqsubseteq \tau$ rather than a (point, variable) pair; the preserved quantity is a synthesised type, not a runtime value; and ``deletion'' is a structural $\gap$ in the precision lattice.
+Program slicing has static and dynamic variants~\cite{Weiser1984,KorelLaski1988}, depending on whether the slicing criterion is preserved over \textit{all} inputs to the program or a particular execution. As typing is deterministic (\cref{thm:unicity}), this distinction does not apply to type slicing.
 
 \subsection{Galois Slicing}
 \label{sec:cmp-galois}

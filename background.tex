@@ -145,9 +145,9 @@ b \sqcup (a \setminus b) \arrow[r, dashed, induced, "\sqsubseteqOriginal"] & {\c
     every node/.style={inner sep=1.5pt, font=\small},
     inducededge/.style={->, draw=Purple, dashed, line width=0.8pt, dash pattern=on 3pt off 2pt}
 ]
-\node (b1) at (-3.6, 1.4) {$b_1$};
-\node (a1) at (-3.6, -1.4) {$a_1$};
-\draw[->, Mahogany!80, line width=0.55pt] (a1) -- node[auto, sloped, font=\scriptsize, Mahogany!75!black] {$\sqsubseteq_1$} (b1);
+\node (a1) at (-1.05, -3.2) {$a_1$};
+\node (b1) at ( 1.05, -3.2) {$b_1$};
+\draw[->, Mahogany!80, line width=0.55pt] (a1) -- node[above, font=\scriptsize, Mahogany!75!black] {$\sqsubseteq_1$} (b1);
 
 \node (b2) at ( 3.6, 1.4) {$b_2$};
 \node (a2) at ( 3.6, -1.4) {$a_2$};
@@ -183,7 +183,7 @@ b \sqcup (a \setminus b) \arrow[r, dashed, induced, "\sqsubseteqOriginal"] & {\c
 \begin{scope}[on background layer]
   \node[draw=Mahogany!50, fill=Mahogany!5, rounded corners=4pt, line width=0.5pt,
         inner sep=8pt, fit={(a1)(b1)},
-        label={[font=\scriptsize\itshape, Mahogany!75!black]above:$L_1$}] (lat1) {};
+        label={[font=\scriptsize\itshape, Mahogany!75!black]below:$L_1$}] (lat1) {};
   \node[draw=NavyBlue!50, fill=NavyBlue!5, rounded corners=4pt, line width=0.5pt,
         inner sep=8pt, fit={(a2)(b2)},
         label={[font=\scriptsize\itshape, NavyBlue!75!black]above:$L_2$}] (lat2) {};
@@ -192,7 +192,7 @@ b \sqcup (a \setminus b) \arrow[r, dashed, induced, "\sqsubseteqOriginal"] & {\c
         label={[font=\scriptsize\itshape, Purple!75!black]above:$L_1 \times L_2$}] (latP) {};
 \end{scope}
 
-\draw[-{Implies[]}, double, double distance=1.4pt, gray!60, line width=0.4pt] (lat1.east) to[bend left=12] (latP.west);
+\draw[-{Implies[]}, double, double distance=1.4pt, gray!60, line width=0.4pt] (lat1.north) to[bend right=15] (latP.south);
 \draw[-{Implies[]}, double, double distance=1.4pt, gray!60, line width=0.4pt] (lat2.west) to[bend right=12] (latP.east);
 
 \end{tikzpicture}
