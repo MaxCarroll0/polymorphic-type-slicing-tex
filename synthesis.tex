@@ -230,9 +230,9 @@ In practice, a user may not arrive at a query atomically. One might look at a sy
 
 \paragraph{Branch hopping.} This descending chain of program slices is useful because it intuitively aligns with the users thinking of \textit{refining} and existing slice, and retrieving a refined program consistent with the last query. Picking random minimal slices will not necessarily form such a chain, giving rise to `branch hopping' where highlighted regions switch between branches when refining the query, which is undesirable from a UX perspective. For example, refining $\upsilon = \mathbf{*}\Rightarrow\mathbf{*}$ to $\upsilon' = \gap\Rightarrow\mathbf{*}$:
 \begin{center}
-\fullslice{x : \sli{\mathbf{*} \Rightarrow \mathbf{*}}}{\sli{\mathbf{if}}\;\mathbf{true}\;\sli{\mathbf{then}\;x\;\mathbf{else}}\;\gap}
+\fullslice{x : \sli{\mathbf{*} \Rightarrow \mathbf{*}}}{\sli{\mathbf{if}}\;\mathbf{true}\;\sli{\mathbf{then}\;x\;\mathbf{else}}\;y}
 \quad$\xrightarrow{\upsilon' \sqsubseteq \upsilon}$\quad
-\fullslice{y : \mathbf{*}\,\sli{\Rightarrow \mathbf{*}}}{\sli{\mathbf{if}}\;\mathbf{true}\;\sli{\mathbf{then}}\;\gap\;\sli{\mathbf{else}\;y}}
+\fullslice{y : \mathbf{*}\,\sli{\Rightarrow \mathbf{*}}}{\sli{\mathbf{if}}\;\mathbf{true}\;\sli{\mathbf{then}}\;x\;\sli{\mathbf{else}\;y}}
 \end{center}
 
 \subsection{\yo Decompositions}

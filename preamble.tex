@@ -13,7 +13,7 @@
 }
 \setmainfont{Latin Modern Roman}[RawFeature={+shrinkemdash}]
 \setsansfont{Latin Modern Sans}[RawFeature={+shrinkemdash}]
-\setmonofont{Latin Modern Mono}[RawFeature={+shrinkemdash}]
+\setmonofont{Latin Modern Mono}[RawFeature={+shrinkemdash},BoldFont={lmmonolt10-bold.otf}]
 
 % Save \sqsubseteq before semantic redefines it (needed for tikz-cd labels)
 \let\sqsubseteqOriginal\sqsubseteq
@@ -76,6 +76,27 @@
 % Universal-property diagram convention: assumed (Class 2), induced (Class 3)
 \colorlet{assumed}{BurntOrange!80!black}
 \colorlet{induced}{TealBlue!45!black}
+
+% Slice colouring for variable references to bindings that are recursively sliced.
+\newcommand{\asmref}[1]{\textcolor{assumed}{\textbf{#1}}}
+
+% Slice text colours: soft (general slice content) vs strong (type sources).
+\newcommand{\synsrc}[1]{\textcolor{BrickRed!60!gray}{#1}}
+\newcommand{\anasrc}[1]{\textcolor{NavyBlue!60!gray}{#1}}
+\newcommand{\synsrcS}[1]{\textcolor{red!85!black}{\textbf{\boldmath\addfontfeature{FakeBold=4.5}#1}}}
+\newcommand{\anasrcS}[1]{\textcolor{blue!85!black}{\textbf{\boldmath\addfontfeature{FakeBold=4.5}#1}}}
+\newcommand{\strN}[1]{\textcolor{OliveGreen!65!black}{#1}}
+
+% Fold glyph: dice rendered in TikZ so it does not depend on a system font with ⚂ (U+2682).
+\newcommand{\fold}{%
+  \tikz[baseline=0.1em]{%
+    \draw[rounded corners=0.3pt, line width=0.28pt, black!75]
+      (0,0) rectangle (0.85em,0.85em);%
+    \fill[black!85] (0.18em,0.67em) circle (0.07em);%
+    \fill[black!85] (0.425em,0.425em) circle (0.07em);%
+    \fill[black!85] (0.67em,0.18em) circle (0.07em);%
+  }%
+}
 
 % Lattice ops and precision in a muted colour
 \definecolor{latticecolor}{HTML}{8055B5}
@@ -191,6 +212,13 @@
     \node[draw=BrickRed!85, dashed, line width=0.7pt, rounded corners=2pt,
           inner sep=2pt, fill=BrickRed!6, anchor=base] (N) {\strut$#1$};%
   }%
+}
+
+% IDE-style red error squiggle (wavy underline beneath the argument).
+% \uwave inherits the current text colour for the wave; wrap the argument in a
+% \mbox with the surrounding (non-red) colour so only the underline is red.
+\DeclareRobustCommand{\squiggle}[1]{%
+  {\color{red}\uwave{\mbox{\normalcolor #1}}}%
 }
 
 % Lighter \sli[OliveGreen] for structural parts of an analysis-slice context

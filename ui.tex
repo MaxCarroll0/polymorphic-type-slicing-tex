@@ -1,7 +1,498 @@
 \section{Explanation by Example}
 \label{sec:explanation}
 
-Example for iteratively explaining types and refining type queries to debug a type error / explore code.
+This section previews the slicing apparatus formally introduced in later chapters through three worked examples. \Cref{fig:parse-digit-slices} contrasts \synsrc{synthesis} and \anasrc{analysis} slices on a single function call --- the two judgements are defined in \cref{sec:synthesis,sec:analysis}. \Cref{fig:parse-pin-slices} demonstrates \emph{query refinement} (the formal apparatus appears in \cref{sec:decompositions}) and the use of slicing for static type-error debugging, treated systematically in \cref{sec:marking}. \Cref{fig:parse-event-slices} demonstrates \emph{dynamic sum types}: an unannotated injection \texttt{Left(a)} is inferred at \texttt{A~+~$\dyn$} and \texttt{Right(b)} at \texttt{$\dyn$~+~B}, with $\dyn$ filling the unmentioned alternative and so removing the annotation otherwise required at every injection. The case rule then joins the two branches into a precise sum, e.g.\ \texttt{(A~+~$\dyn$)~$\sqcup$~($\dyn$~+~B)~=~A~+~B} --- the union inference TypeScript performs on tagged-literal branches. Lehmann and Tanter's \emph{Sums of Uncertainty}~\cite{SumsOfUncertainty} develops gradual sum types far further; we take only their two injection rules giving \texttt{Left(a)~:~A~+~$\dyn$} and \texttt{Right(b)~:~$\dyn$~+~B}.
+
+\paragraph{How to read the figures.}
+\begin{itemize}\setlength\itemsep{1pt}
+  \item \synsrc{Red} and \anasrc{blue} mark code retained by a synthesis or analysis slice respectively.
+  \item \asmref{Orange} marks variable bindings whose own slices are referenced from the current slice as \emph{assumption slices}; their bodies are sliced recursively and shown as nested sub-slices.
+  \item \strN{Green} text is \emph{purely structural}: code retained for syntactic well-formedness but not sourcing the queried type. An \texttt{if} or \texttt{case} keyword renders green precisely when the joined type can be sourced entirely from one surviving branch, leaving the construct itself irrelevant to the join.\footnote{Treating a position as purely structural rather than slice-contributing is a presentational refinement, not part of the formal slicing relation; it is straightforward to implement in a presentation tool.}
+  \item \protect\fold{} replaces sub-terms outside the slice.
+  \item \synsrcS{Bolded} red and \anasrcS{blue} positions are the \emph{type sources} of a slice: a minimal sub-set of slice positions from which the queried type can be reconstructed.\footnote{This bolded sub-slice is informal --- not part of the formal slicing relation --- but is easy to compute in practice.}
+\end{itemize}
+
+\begin{figure}[!t]
+\centering
+
+% --- Local visual conventions (figure-scoped) ---
+% Dice symbol drawn in TikZ so it does not depend on a system font with ⚂ (U+2682).
+\providecommand{\fold}{%
+  \tikz[baseline=0.1em]{%
+    \draw[rounded corners=0.3pt, line width=0.28pt, black!75]
+      (0,0) rectangle (0.85em,0.85em);%
+    \fill[black!85] (0.18em,0.67em) circle (0.07em);%
+    \fill[black!85] (0.425em,0.425em) circle (0.07em);%
+    \fill[black!85] (0.67em,0.18em) circle (0.07em);%
+  }%
+}
+% Sources of the queried type: synthesis (red) and analysis (blue).
+\providecommand{\synsrc}[1]{\textcolor{BrickRed!60!gray}{#1}}
+\providecommand{\anasrc}[1]{\textcolor{NavyBlue!60!gray}{#1}}
+\providecommand{\synsrcS}[1]{\textcolor{red!85!black}{\textbf{\boldmath\addfontfeature{FakeBold=4.5}#1}}}
+\providecommand{\anasrcS}[1]{\textcolor{blue!85!black}{\textbf{\boldmath\addfontfeature{FakeBold=4.5}#1}}}
+% Purely structural skeleton: single middle shade of green.
+\providecommand{\strN}[1]{\textcolor{OliveGreen!65!black}{#1}}
+\providecommand{\strM}[1]{\textcolor{OliveGreen!65!black}{#1}}
+\providecommand{\strF}[1]{\textcolor{OliveGreen!65!black}{#1}}
+% Selected (focused) sub-term: soft yellow highlight, no harsh outline.
+\providecommand{\focusbox}[1]{%
+  \tikz[baseline=(N.base)]{%
+    \node[draw=black!30, line width=0.3pt, rounded corners=2pt,
+          inner sep=2pt, fill=black!10, anchor=base, align=left] (N)
+         {\strut\ttfamily\bfseries #1};%
+  }%
+}
+% Gapped sub-terms shown in their original position (in-context view): muted grey.
+\providecommand{\offslice}[1]{\textcolor{black!42}{#1}}
+
+% --- TikZ styles for the code segments and the artistic fold arrow ---
+\tikzset{
+  codebox/.style={
+    draw=black!55, line width=0.5pt, dotted,
+    rounded corners=2.5pt, inner sep=5pt,
+    align=left, anchor=north,
+    font=\ttfamily\scriptsize,
+  },
+  artyarrow/.style={
+    -{Stealth[length=2.8mm, width=2.2mm]},
+    line width=0.7pt, color=black!55,
+    decorate, decoration={
+      snake, amplitude=0.6mm, segment length=2.7mm,
+      pre length=2mm, post length=2.5mm,
+    },
+  },
+  arrowlbl/.style={
+    font=\itshape\scriptsize, color=black!60,
+    fill=white, inner sep=1.5pt,
+  },
+}
+
+\begin{subfigure}[t]{0.48\textwidth}
+\centering
+{\textsc{\large\bfseries Synthesis slice}}\par
+\smallskip
+\begin{tabular}{@{}r@{\hspace{0.7em}}l@{}}
+\textit{\footnotesize\color{black!55}select} & \texttt{parse\_digit} \\
+\textit{\footnotesize\color{black!55}query}  & $\upsilon \;=\; \synsrc{\texttt{Char → Option Digit}}$
+\end{tabular}
+\par\smallskip
+
+\begin{tikzpicture}
+\node[codebox] (orig) at (0,0) {%
+\strN{type} \asmref{Option}\synsrc{(A)} \strN{=} \synsrc{Some(A)} \strM{|} \offslice{None}\\
+\strN{type} \asmref{Digit} \strN{=} \synsrc{Zero} \strM{|} \offslice{One | Two | $\cdots$ | Nine}\\
+\strN{let} \asmref{parse\_digit} \strN{=} \synsrcS{fun} \offslice{c} \strM{:} \synsrcS{Char} \synsrcS{-\textgreater}\\
+\quad\strM{case} \offslice{c} \strM{of}\\
+\qquad\strF{|} \offslice{'0'} \strF{=\textgreater} \synsrcS{Some Zero}\\
+\qquad\offslice{| '1' =\textgreater\ Some One}\\
+\qquad\offslice{$\;\;\vdots$}\\
+\qquad\offslice{| '9' =\textgreater\ Some Nine}\\
+\qquad\offslice{| \_\ \ =\textgreater\ None}\\
+\strN{in} \focusbox{\synsrc{parse\_digit}}\strN{(}\offslice{'5'}\strN{)}%
+};
+
+\node[codebox, below=14mm of orig] (fold) {%
+\strN{type} \asmref{Option}\synsrc{(A)} \strN{=} \synsrc{Some(A)} \strM{|} \fold\\
+\strN{type} \asmref{Digit} \strN{=} \synsrc{Zero} \strM{|} \fold\\
+\strN{let} \asmref{parse\_digit} \strN{=} \synsrcS{fun} \fold{} \strM{:} \synsrcS{Char} \synsrcS{-\textgreater}\\
+\quad\strM{case} \fold{} \strM{of}\\
+\qquad\strF{|} \fold{} \strF{=\textgreater} \synsrcS{Some Zero}\\
+\qquad\strF{|} \fold\\
+\strN{in} \focusbox{\synsrc{parse\_digit}}\strN{(}\fold\strN{)}%
+};
+
+\draw[artyarrow] (orig.south) -- node[arrowlbl] {fold} (fold.north);
+
+% Enforce a fixed bounding box; identical coords in both subfigures guarantee
+% the code segments and captions line up horizontally.
+\useasboundingbox (-3.8,0.55) rectangle (3.8,-9.6);
+\end{tikzpicture}
+
+\caption{\texttt{parse\_digit} synthesises type \synsrc{\texttt{Char → Option Digit}}.}\label{fig:syn-parse-digit}
+\end{subfigure}\hfill
+\begin{subfigure}[t]{0.48\textwidth}
+\centering
+{\textsc{\large\bfseries Analysis slice}}\par
+\smallskip
+\begin{tabular}{@{}r@{\hspace{0.7em}}l@{}}
+\textit{\footnotesize\color{black!55}select} & \texttt{'5'} \\
+\textit{\footnotesize\color{black!55}query}  & $\upsilon \;=\; \anasrc{\texttt{Char}}$
+\end{tabular}
+\par\smallskip
+
+\begin{tikzpicture}
+\node[codebox] (orig) at (0,0) {%
+\offslice{type Option(A) = Some(A) | None}\\
+\offslice{type Digit = Zero | One | Two | $\cdots$ | Nine}\\
+\strN{let} \asmref{parse\_digit} \strN{=} \anasrc{fun} \offslice{c} \strM{:} \anasrcS{Char} \anasrc{-\textgreater}\\
+\quad\offslice{case c of}\\
+\qquad\offslice{| '0' =\textgreater\ Some Zero}\\
+\qquad\offslice{| '1' =\textgreater\ Some One}\\
+\qquad\offslice{$\;\;\vdots$}\\
+\qquad\offslice{| '9' =\textgreater\ Some Nine}\\
+\qquad\offslice{| \_\ \ =\textgreater\ None}\\
+\strN{in} \anasrc{parse\_digit}\anasrc{(}\focusbox{'5'}\anasrc{)}%
+};
+
+\node[codebox, below=14mm of orig] (fold) {%
+\fold\\
+\fold\\
+\strN{let} \asmref{parse\_digit} \strN{=} \anasrc{fun} \fold{} \strM{:} \anasrcS{Char} \anasrc{-\textgreater} \fold\\
+\strN{in} \anasrc{parse\_digit}\anasrc{(}\focusbox{\fold{}}\anasrc{)}%
+};
+
+\draw[artyarrow] (orig.south) -- node[arrowlbl] {fold} (fold.north);
+
+% Same bounding box as the synthesis subfigure → horizontally aligned captions.
+\useasboundingbox (-3.8,0.55) rectangle (3.8,-9.6);
+\end{tikzpicture}
+
+\caption{\texttt{'5'} analyses against type \anasrcS{\texttt{Char}}.}\label{fig:ana-parse-digit}
+\end{subfigure}
+
+\caption{Parsing a character into an \texttt{Option Digit}.}
+\label{fig:parse-digit-slices}
+\end{figure}
+
+\begin{figure}[p]
+\centering
+
+% Local visual conventions (figure-scoped). Most are reused from the previous figure.
+\providecommand{\fold}{%
+  \tikz[baseline=0.1em]{%
+    \draw[rounded corners=0.3pt, line width=0.28pt, black!75]
+      (0,0) rectangle (0.85em,0.85em);%
+    \fill[black!85] (0.18em,0.67em) circle (0.07em);%
+    \fill[black!85] (0.425em,0.425em) circle (0.07em);%
+    \fill[black!85] (0.67em,0.18em) circle (0.07em);%
+  }%
+}
+\providecommand{\synsrc}[1]{\textcolor{BrickRed!60!gray}{#1}}
+\providecommand{\anasrc}[1]{\textcolor{NavyBlue!60!gray}{#1}}
+\providecommand{\synsrcS}[1]{\textcolor{red!85!black}{\textbf{\boldmath\addfontfeature{FakeBold=4.5}#1}}}
+\providecommand{\anasrcS}[1]{\textcolor{blue!85!black}{\textbf{\boldmath\addfontfeature{FakeBold=4.5}#1}}}
+\providecommand{\strN}[1]{\textcolor{OliveGreen!65!black}{#1}}
+\providecommand{\strM}[1]{\textcolor{OliveGreen!65!black}{#1}}
+\providecommand{\strF}[1]{\textcolor{OliveGreen!65!black}{#1}}
+\providecommand{\offslice}[1]{\textcolor{black!42}{#1}}
+\providecommand{\focusbox}[1]{%
+  \tikz[baseline=(N.base)]{%
+    \node[draw=black!30, line width=0.3pt, rounded corners=2pt,
+          inner sep=2pt, fill=black!10, anchor=base, align=left] (N)
+         {\strut\ttfamily\bfseries #1};%
+  }%
+}
+
+\newcommand{\slicebody}[1]{%
+  \begin{minipage}[t]{6.5cm}\ttfamily\tiny\raggedright #1\end{minipage}%
+}
+\newcommand{\rootbody}[1]{%
+  \begin{minipage}[t]{13.5cm}\ttfamily\scriptsize\raggedright #1\end{minipage}%
+}
+\begin{tikzpicture}[
+  codebox/.style={
+    draw=black!55, line width=0.5pt, dotted,
+    rounded corners=2.5pt, inner sep=5pt,
+    anchor=north,
+  },
+  rootbox/.style={codebox, line width=0.7pt, draw=black!70, inner sep=6pt},
+  artyarrow/.style={
+    -{Stealth[length=2.8mm, width=2.2mm]},
+    line width=0.7pt, color=black!55,
+    decorate, decoration={
+      snake, amplitude=0.6mm, segment length=2.7mm,
+      pre length=2mm, post length=2.5mm,
+    },
+  },
+  branchedge/.style={
+    -{Stealth[length=2.5mm, width=2mm]},
+    line width=0.6pt, color=black!55,
+  },
+  arrowlbl/.style={font=\itshape\scriptsize, color=black!60, fill=white, inner sep=1.5pt},
+  stagelbl/.style={font=\itshape\footnotesize\color{black!55}, anchor=south, inner sep=1pt},
+]
+
+% --- ROOT: original program with red squiggle ---
+% Standard-style syntax highlighting (not slice colours):
+%   \kwd{...}   keywords (let, fun, type, case, ...) - muted purple
+%   \ty{...}    types and type-level identifiers       - muted teal
+%   default text for value-level identifiers and literals
+\newcommand{\kwd}[1]{\textcolor{Purple!58!black}{#1}}
+\newcommand{\ty}[1]{\textcolor{TealBlue!55!black}{#1}}
+\node[rootbox] (orig) at (0,0) {\rootbody{%
+\kwd{type} \ty{Option(A)} \kwd{=} \ty{Some(A)} \kwd{|} \ty{None}\\
+\kwd{type} \ty{Digit} \kwd{=} \ty{Zero} \kwd{|} \ty{One} \kwd{|} \ty{Two} \kwd{|} $\cdots$ \kwd{|} \ty{Nine}\\
+\kwd{type} \ty{Pin} \kwd{=} \ty{Digit × Digit × Digit × Digit}\\
+\kwd{let} bind-parser \kwd{=} \kwd{typfun}\ty{<A>}\ \kwd{typfun}\ty{<B>}\\
+\quad \kwd{fun}\ (p \kwd{:} \ty{String -\textgreater\ Option (String × A)}) \kwd{-\textgreater}\\
+\quad \kwd{fun}\ (f \kwd{:} \ty{A -\textgreater\ Option (String × B)}) \kwd{-\textgreater}\\
+\quad \kwd{fun}\ (s \kwd{:} \ty{String}) \kwd{-\textgreater}\\
+\quad\quad \kwd{case} p(s) \kwd{of}\\
+\quad\quad\quad \kwd{|} \ty{None} \kwd{-\textgreater}\ \ty{None}\\
+\quad\quad\quad \kwd{|} \ty{Some(}s', a\ty{)} \kwd{-\textgreater}\ f\ a\\
+\kwd{let} is\_digit \kwd{=} \kwd{fun}\ (s \kwd{:} \ty{String}) \kwd{-\textgreater}\ $\cdots$\\
+\kwd{let} parse\_pin \kwd{=} \kwd{fun}\ (s \kwd{:} \ty{String}) \kwd{-\textgreater}\\
+\quad bind-parser\ty{<Digit><Pin>}\ is\_digit (\kwd{fun}\ (d\textsubscript{1} \kwd{:} \ty{Digit}) \kwd{-\textgreater}\\
+\quad bind-parser\ty{<Digit><Pin>}\ is\_digit (\kwd{fun}\ (d\textsubscript{2} \kwd{:} \ty{Digit}) \kwd{-\textgreater}\\
+\quad bind-parser\ty{<Digit><Pin>}\ is\_digit (\kwd{fun}\ (d\textsubscript{3} \kwd{:} \ty{Digit}) \kwd{-\textgreater}\\
+\quad\quad bind-parser\ty{<Digit><Pin>}\ is\_digit (\\
+\quad\quad\quad \focusbox{\squiggle{\kwd{fun}\ (d\textsubscript{4} \kwd{:} \ty{Digit}) \kwd{-\textgreater}\ \kwd{fun}\ (s' \kwd{:} \ty{String}) \kwd{-\textgreater}}\\ \quad \squiggle{\ty{Some(}s', (d\textsubscript{1}, d\textsubscript{2}, d\textsubscript{3}, d\textsubscript{4})\ty{)}}}))))) \\
+\kwd{in}\ parse\_pin(\kwd{"1234"})%
+}};
+
+\node[stagelbl, anchor=south] at (orig.north) {original program};
+
+% Column x-positions and explicit y-coordinates for each stage; using these
+% rather than below-of chains guarantees both columns line up at every stage.
+\def\colL{-4.05}
+\def\colR{4.05}
+% Y-coordinates of each box's NORTH anchor; queries sit ABOVE each box.
+\coordinate (fullTop)    at (0,-10.5);
+\coordinate (refinedTop) at (0,-18.0);
+
+% Local: per-stage query label commands.
+\newcommand{\synquery}[1]{%
+  \begin{minipage}[t]{6.5cm}\centering
+  {\scriptsize\itshape\color{black!55}query }{\scriptsize$\upsilon\,=\,$}{\scriptsize\synsrc{#1}}%
+  \end{minipage}}
+\newcommand{\anaquery}[1]{%
+  \begin{minipage}[t]{6.5cm}\centering
+  {\scriptsize\itshape\color{black!55}query }{\scriptsize$\upsilon\,=\,$}{\scriptsize\anasrc{#1}}%
+  \end{minipage}}
+
+% --- COLUMN: synthesis (left) ---
+\node[codebox] (synFull) at ($(fullTop)+(\colL,0)$) {\slicebody{%
+\strN{type} \asmref{Option}\synsrc{(A)} \strN{=} \synsrc{Some(A)} \strN{|} \fold\\
+\strN{type} \asmref{Digit} \strN{=} \fold\\
+\strN{type} \asmref{Pin} \strN{=} \synsrc{Digit × Digit × Digit × Digit}\\
+\strN{let} \asmref{bind-parser} \strN{=} \fold\\
+\strN{let} \fold\ \strN{=} \strN{fun} \fold\ \strN{-\textgreater}\\
+\quad \fold\ \strN{(}\strN{fun} \synsrc{(}\asmref{d\textsubscript{1}} \strN{:} \synsrc{Digit}\synsrc{)} \strN{-\textgreater}\\
+\quad \fold\ \strN{(}\strN{fun} \synsrc{(}\asmref{d\textsubscript{2}} \strN{:} \synsrc{Digit}\synsrc{)} \strN{-\textgreater}\\
+\quad \fold\ \strN{(}\strN{fun} \synsrc{(}\asmref{d\textsubscript{3}} \strN{:} \synsrc{Digit}\synsrc{)} \strN{-\textgreater}\\
+\quad \fold\ \strN{(}\\
+\quad\quad \focusbox{\squiggle{\synsrcS{fun}\ \synsrc{(}\asmref{d\textsubscript{4}} \synsrc{:} \synsrcS{Digit}\synsrc{)} \synsrcS{-\textgreater}\ \synsrcS{fun}\ \synsrc{(}\asmref{s'} \synsrc{:} \synsrcS{String}\synsrc{)} \synsrcS{-\textgreater}}\\ \quad\squiggle{\synsrcS{Some(s', (d\textsubscript{1}, d\textsubscript{2}, d\textsubscript{3}, d\textsubscript{4}))}}}\\
+\quad \strN{))))}\\
+\strN{in} \fold%
+}};
+\node[anchor=south, inner sep=3pt] (synFullQuery) at (synFull.north)
+  {\synquery{Digit \textrightarrow\ String \textrightarrow\ Option (String × Pin)}};
+
+\node[codebox] (synRefined) at ($(refinedTop)+(\colL,0)$) {\slicebody{%
+\fold\\
+\strN{let} \fold\ \strN{=} \strN{fun} \fold\ \strN{-\textgreater}\\
+\quad \fold\ \strN{(}\strN{fun} \fold\ \strN{-\textgreater}\\
+\quad \fold\ \strN{(}\strN{fun} \fold\ \strN{-\textgreater}\\
+\quad \fold\ \strN{(}\strN{fun} \fold\ \strN{-\textgreater}\\
+\quad \fold\ \strN{(}\\
+\quad\quad \focusbox{\squiggle{\synsrcS{fun} \fold\ \synsrcS{-\textgreater}\ \synsrcS{fun} \fold\ \synsrcS{-\textgreater}\ \fold}}\\
+\quad \strN{))))}\\
+\strN{in} \fold%
+}};
+\node[anchor=south, inner sep=3pt] (synRefinedQuery) at (synRefined.north)
+  {\synquery{\fold\ \textrightarrow\ (\fold\ \textrightarrow\ \fold)}};
+
+% --- COLUMN: analysis (right) ---
+\node[codebox] (anaFull) at ($(fullTop)+(\colR,0)$) {\slicebody{%
+\strN{type} \asmref{Option}\anasrc{(}\fold\anasrc{)} \strN{=} \fold\\
+\strN{type} \asmref{Digit} \strN{=} \fold\\
+\strN{type} \asmref{Pin} \strN{=} \fold\\
+\strN{let} \asmref{bind-parser} \strN{=} \anasrc{typfun<A>} \anasrc{typfun<B>}\\
+\quad \anasrc{fun} \anasrc{(}\fold\anasrc{)} \anasrc{-\textgreater}\\
+\quad \anasrc{fun} \anasrc{(}\fold\ \strN{:} \anasrc{A} \anasrcS{-\textgreater\ Option (String ×} \anasrc{B}\anasrcS{)}\anasrc{)} \anasrc{-\textgreater}\\
+\quad \fold\\
+\strN{let} \fold\ \strN{=} \strN{fun} \fold\ \strN{-\textgreater}\\
+\quad \fold\ \fold\ \strN{(fun} \fold\ \strN{-\textgreater}\\
+\quad \fold\ \fold\ \strN{(fun} \fold\ \strN{-\textgreater}\\
+\quad \fold\ \fold\ \strN{(fun} \fold\ \strN{-\textgreater}\\
+\quad \anasrc{bind-parser<}\anasrcS{Digit}\anasrc{><}\anasrcS{Pin}\anasrc{>}\ \fold\ \focusbox{\squiggle{\fold}}\strN{)))}\\
+\strN{in} \fold%
+}};
+\node[anchor=south, inner sep=3pt] (anaFullQuery) at (anaFull.north)
+  {\anaquery{Digit \textrightarrow\ Option (String × Pin)}};
+
+\node[codebox] (anaRefined) at ($(refinedTop)+(\colR,0)$) {\slicebody{%
+\strN{type} \asmref{Option}\anasrc{(}\fold\anasrc{)} \strN{=} \fold\\
+\fold\\
+\strN{let} \asmref{bind-parser} \strN{=} \anasrc{typfun}\anasrc{<}\fold\anasrc{>} \anasrc{typfun}\anasrc{<}\fold\anasrc{>}\\
+\quad \anasrc{fun} \anasrc{(}\fold\anasrc{)} \anasrc{-\textgreater}\\
+\quad \anasrc{fun} \anasrc{(}\fold\ \strN{:} \fold\ \anasrcS{-\textgreater}\ \anasrcS{Option}\ \fold\anasrc{)} \anasrc{-\textgreater}\\
+\quad \fold\\
+\strN{let} \fold\ \strN{=} \strN{fun} \fold\ \strN{-\textgreater}\\
+\quad \fold\ \fold\ \strN{(fun} \fold\ \strN{-\textgreater}\\
+\quad \fold\ \fold\ \strN{(fun} \fold\ \strN{-\textgreater}\\
+\quad \fold\ \fold\ \strN{(fun} \fold\ \strN{-\textgreater}\\
+\quad \anasrc{bind-parser}\anasrc{<}\fold\anasrc{><}\fold\anasrc{>}\ \fold\ \focusbox{\squiggle{\fold}}\strN{)))}\\
+\strN{in} \fold%
+}};
+\node[anchor=south, inner sep=3pt] (anaRefinedQuery) at (anaRefined.north)
+  {\anaquery{\fold\ \textrightarrow\ Option \fold}};
+
+% --- Branching arrows from the root to each full-stage query ---
+\draw[branchedge] (orig.south) to[bend right=18]
+   node[arrowlbl, pos=0.45] {synthesis query} (synFullQuery.north);
+\draw[branchedge] (orig.south) to[bend left=18]
+   node[arrowlbl, pos=0.45] {analysis query} (anaFullQuery.north);
+
+% --- Inter-stage arrows: from each full box's south to the refined query above ---
+\draw[artyarrow] (synFull.south) -- node[arrowlbl] {refine query} (synRefinedQuery.north);
+\draw[artyarrow] (anaFull.south) -- node[arrowlbl] {refine query} (anaRefinedQuery.north);
+
+% Stage labels in the gutter between the two columns
+\node[stagelbl, color=black!55, anchor=center] at (synFull.center    -| 0,0) {full};
+\node[stagelbl, color=black!55, anchor=center] at (synRefined.center -| 0,0) {refined};
+
+\end{tikzpicture}
+
+\caption{Debugging a static type error in a parser for 4 digit PINs.}
+\label{fig:parse-pin-slices}
+\end{figure}
+
+\begin{figure}[p]
+\centering
+
+% Local visual conventions (figure-scoped). Reused from previous figures.
+\providecommand{\fold}{%
+  \tikz[baseline=0.1em]{%
+    \draw[rounded corners=0.3pt, line width=0.28pt, black!75]
+      (0,0) rectangle (0.85em,0.85em);%
+    \fill[black!85] (0.18em,0.67em) circle (0.07em);%
+    \fill[black!85] (0.425em,0.425em) circle (0.07em);%
+    \fill[black!85] (0.67em,0.18em) circle (0.07em);%
+  }%
+}
+\providecommand{\synsrc}[1]{\textcolor{BrickRed!60!gray}{#1}}
+\providecommand{\anasrc}[1]{\textcolor{NavyBlue!60!gray}{#1}}
+\providecommand{\synsrcS}[1]{\textcolor{red!85!black}{\textbf{\boldmath\addfontfeature{FakeBold=4.5}#1}}}
+\providecommand{\anasrcS}[1]{\textcolor{blue!85!black}{\textbf{\boldmath\addfontfeature{FakeBold=4.5}#1}}}
+\providecommand{\strN}[1]{\textcolor{OliveGreen!65!black}{#1}}
+\providecommand{\strM}[1]{\textcolor{OliveGreen!65!black}{#1}}
+\providecommand{\strF}[1]{\textcolor{OliveGreen!65!black}{#1}}
+\providecommand{\offslice}[1]{\textcolor{black!42}{#1}}
+\providecommand{\focusbox}[1]{%
+  \tikz[baseline=(N.base)]{%
+    \node[draw=black!30, line width=0.3pt, rounded corners=2pt,
+          inner sep=2pt, fill=black!10, anchor=base, align=left] (N)
+         {\strut\ttfamily\bfseries #1};%
+  }%
+}
+
+\newcommand{\slicebody}[1]{%
+  \begin{minipage}[t]{6.5cm}\ttfamily\tiny\raggedright #1\end{minipage}%
+}
+\newcommand{\fullslicebody}[1]{%
+  \begin{minipage}[t]{12cm}\ttfamily\tiny\raggedright #1\end{minipage}%
+}
+\newcommand{\rootbody}[1]{%
+  \begin{minipage}[t]{13.5cm}\ttfamily\scriptsize\raggedright #1\end{minipage}%
+}
+
+\begin{tikzpicture}[
+  codebox/.style={
+    draw=black!55, line width=0.5pt, dotted,
+    rounded corners=2.5pt, inner sep=5pt,
+    anchor=north,
+  },
+  rootbox/.style={codebox, line width=0.7pt, draw=black!70, inner sep=6pt},
+  artyarrow/.style={
+    -{Stealth[length=2.8mm, width=2.2mm]},
+    line width=0.7pt, color=black!55,
+    decorate, decoration={
+      snake, amplitude=0.6mm, segment length=2.7mm,
+      pre length=2mm, post length=2.5mm,
+    },
+  },
+  branchedge/.style={
+    -{Stealth[length=2.5mm, width=2mm]},
+    line width=0.6pt, color=black!55,
+  },
+  arrowlbl/.style={font=\itshape\scriptsize, color=black!60, fill=white, inner sep=1.5pt},
+  stagelbl/.style={font=\itshape\footnotesize\color{black!55}, anchor=south, inner sep=1pt},
+]
+
+% --- ROOT: original program. Syntax highlighting (NOT slice colours): purple
+%   keywords (\kwd), teal types (\ty), default identifiers and literals.
+\newcommand{\kwd}[1]{\textcolor{Purple!58!black}{#1}}
+\newcommand{\ty}[1]{\textcolor{TealBlue!55!black}{#1}}
+\node[rootbox] (orig) at (0,0) {\rootbody{%
+\kwd{type} \ty{Option(A)} \kwd{=} \ty{Some(A)} \kwd{|} \ty{None}\\
+\kwd{type} \ty{Digit} \kwd{=} \ty{Zero} \kwd{|} \ty{One} \kwd{|} \ty{Two} \kwd{|} $\cdots$ \kwd{|} \ty{Nine}\\
+\kwd{let} parse\_digit \kwd{=} \kwd{fun}\ (c \kwd{:} \ty{Char}) \kwd{-\textgreater}\ \kwd{case}\ c\ \kwd{of}\\
+\quad \kwd{|} \kwd{'0'} \kwd{=\textgreater}\ \ty{Some Zero} \kwd{|} \kwd{'1'} \kwd{=\textgreater}\ \ty{Some One} \kwd{|} $\cdots$ \kwd{|} \kwd{'9'} \kwd{=\textgreater}\ \ty{Some Nine} \kwd{|} \_ \kwd{=\textgreater}\ \ty{None}\\
+\kwd{let} parse\_string \kwd{:} \ty{Char -\textgreater\ String} \kwd{=} string\_of\_char\\
+\kwd{let} lex\_atom \kwd{=} \kwd{fun}\ (c \kwd{:} \ty{Char}) \kwd{-\textgreater}\\
+\quad \kwd{if} is\_digit(c) \kwd{then} \ty{Left(}parse\_digit(c).get()\ty{)} \kwd{else} \ty{Right(}parse\_string(c)\ty{)}\\
+\kwd{in}\ \focusbox{lex\_atom}(\kwd{`5'})%
+}};
+
+\node[stagelbl, anchor=south] at (orig.north) {original program};
+
+% Column x-positions and explicit y-coordinates for each stage.
+\def\colC{0}
+\def\colL{-4.05}
+\def\colR{4.05}
+\coordinate (fullTop)    at (\colC,-4.7);
+\coordinate (refinedTop) at (0,-10.6);
+
+% Local: per-stage query label commands. (Reused style from figure 2.)
+\newcommand{\synqueryT}[1]{%
+  \begin{minipage}[t]{6.5cm}\centering
+  {\scriptsize\itshape\color{black!55}query }{\scriptsize$\upsilon\,=\,$}{\scriptsize\synsrc{#1}}%
+  \end{minipage}}
+
+% --- FULL synthesis slice (centred under root) ---
+\node[codebox] (fullSlice) at (fullTop) {\fullslicebody{%
+\strN{type} \asmref{Option}\synsrc{(A)} \strN{=} \synsrc{Some(A)} \strN{|} \fold\\
+\strN{type} \asmref{Digit} \strN{=} \synsrcS{Zero} \strN{|} \fold\\
+\strN{let} \asmref{parse\_digit} \strN{=} \synsrc{fun} \fold\ \synsrc{-\textgreater}\ \strN{case} \fold\ \strN{of}\\
+\quad \strF{|} \fold\ \strF{=\textgreater} \synsrc{Some} \synsrcS{Zero} \strF{|} \fold\\
+\strN{let} \asmref{parse\_string} \strN{:} \fold\ \synsrc{-\textgreater\ String} \strN{=} \fold\\
+\strN{let} \asmref{lex\_atom} \strN{=} \synsrcS{fun} \synsrc{(}\fold\ \strN{:} \synsrcS{Char}\synsrc{)} \synsrcS{-\textgreater}\\
+\quad \synsrcS{if} \fold\ \synsrc{then} \synsrcS{Left}\synsrc{(}\synsrc{parse\_digit}\synsrc{(}\fold\synsrc{)}\synsrc{.get()}\synsrc{)} \synsrc{else} \synsrcS{Right}\synsrc{(}\synsrc{parse\_string}\synsrc{(}\fold\synsrc{)}\synsrc{)}\\
+\strN{in} \focusbox{\synsrc{lex\_atom}}\strN{(}\fold\strN{)}%
+}};
+\node[anchor=south, inner sep=3pt] (fullQuery) at (fullSlice.north)
+  {\synqueryT{Char -\textgreater\ Digit + String}};
+
+% --- LEFT refined slice: option-digit half ---
+\node[codebox] (legSlice) at ($(refinedTop)+(\colL,0)$) {\slicebody{%
+\strN{type} \asmref{Option}\synsrc{(A)} \strN{=} \synsrc{Some(A)} \strN{|} \fold\\
+\strN{type} \asmref{Digit} \strN{=} \synsrcS{Zero} \strN{|} \fold\\
+\strN{let} \asmref{parse\_digit} \strN{=} \synsrc{fun} \fold\ \synsrc{-\textgreater}\ \strN{case} \fold\ \strN{of}\\
+\quad \strF{|} \fold\ \strF{=\textgreater} \synsrc{Some} \synsrcS{Zero} \strF{|} \fold\\
+\strN{let} \asmref{lex\_atom} \strN{=} \synsrcS{fun} \synsrc{(}\fold\ \strN{:} \synsrcS{Char}\synsrc{)} \synsrcS{-\textgreater}\\
+\quad \strN{if} \fold\ \strN{then} \synsrcS{Left}\synsrc{(}\synsrc{parse\_digit}\synsrc{(}\fold\synsrc{)}\synsrc{.get()}\synsrc{)} \strN{else} \fold\\
+\strN{in} \focusbox{\synsrc{lex\_atom}}\strN{(}\fold\strN{)}%
+}};
+\node[anchor=south, inner sep=3pt] (legQuery) at (legSlice.north)
+  {\synqueryT{Char -\textgreater\ Digit + \fold}};
+
+% --- RIGHT refined slice: string half ---
+\node[codebox] (restSlice) at ($(refinedTop)+(\colR,0)$) {\slicebody{%
+\strN{let} \asmref{parse\_string} \strN{:} \fold\ \synsrc{-\textgreater\ String} \strN{=} \fold\\
+\strN{let} \asmref{lex\_atom} \strN{=} \synsrcS{fun} \synsrc{(}\fold\ \strN{:} \synsrcS{Char}\synsrc{)} \synsrcS{-\textgreater}\\
+\quad \strN{if} \fold\ \strN{then} \fold\ \strN{else} \synsrcS{Right}\synsrc{(}\synsrc{parse\_string}\synsrc{(}\fold\synsrc{)}\synsrc{)}\\
+\strN{in} \focusbox{\synsrc{lex\_atom}}\strN{(}\fold\strN{)}%
+}};
+\node[anchor=south, inner sep=3pt] (restQuery) at (restSlice.north)
+  {\synqueryT{Char -\textgreater\ \fold\ + String}};
+
+% --- Arrows ---
+% Root -> full slice (centred)
+\draw[branchedge] (orig.south) -- node[arrowlbl] {synthesis query} (fullQuery.north);
+
+% Full slice -> two refined slices (fan out)
+\draw[artyarrow] (fullSlice.south) to[bend right=18]
+   node[arrowlbl, pos=0.55] {refine to digit half} (legQuery.north);
+\draw[artyarrow] (fullSlice.south) to[bend left=18]
+   node[arrowlbl, pos=0.55] {refine to string half} (restQuery.north);
+
+\end{tikzpicture}
+
+\caption{Lexing a character into a \texttt{Left(Digit)} or \texttt{Right(String)} token.}
+\label{fig:parse-event-slices}
+\end{figure}
 
 %%% Local Variables:
 %%% mode: LaTeX
