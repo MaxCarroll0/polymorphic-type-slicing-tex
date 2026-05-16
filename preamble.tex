@@ -83,14 +83,17 @@
 % Slice text colours: soft (general slice content) vs strong (type sources).
 \newcommand{\synsrc}[1]{\textcolor{BrickRed!60!gray}{#1}}
 \newcommand{\anasrc}[1]{\textcolor{NavyBlue!60!gray}{#1}}
-\newcommand{\synsrcS}[1]{\textcolor{red!85!black}{\textbf{\boldmath\addfontfeature{FakeBold=4.5}#1}}}
-\newcommand{\anasrcS}[1]{\textcolor{blue!85!black}{\textbf{\boldmath\addfontfeature{FakeBold=4.5}#1}}}
+% Heavy mono for highlighted type-source spans: real Black weight, rendered as
+% genuine vector glyphs (no FakeBold stroke artifacts).
+\newfontfamily{\heavymono}{SourceCodePro-Black.otf}
+\newcommand{\synsrcS}[1]{\textcolor{red!85!black}{{\heavymono #1}}}
+\newcommand{\anasrcS}[1]{\textcolor{blue!85!black}{{\heavymono #1}}}
 \newcommand{\strN}[1]{\textcolor{OliveGreen!65!black}{#1}}
 
 % Fold glyph: dice rendered in TikZ so it does not depend on a system font with ⚂ (U+2682).
 \newcommand{\fold}{%
   \tikz[baseline=0.1em]{%
-    \draw[rounded corners=0.3pt, line width=0.28pt, black!75]
+    \draw[rounded corners=0.3pt, line width=0.5pt, densely dotted, teal!80!black]
       (0,0) rectangle (0.85em,0.85em);%
     \fill[black!85] (0.18em,0.67em) circle (0.07em);%
     \fill[black!85] (0.425em,0.425em) circle (0.07em);%

@@ -59,6 +59,7 @@
             fontspec
             lualatex-math
             unicode-data
+            sourcecodepro
 
             texcount
 
